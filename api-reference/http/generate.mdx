@@ -1,0 +1,522 @@
+---
+title: 'POST /v1/images/generations'
+api: 'POST http://localhost:8000/v1/images/generations'
+description: 'Generate images from text prompts'
+---
+
+## Overview
+
+Generate images from text descriptions using the loaded diffusion model. This endpoint is compatible with OpenAI's image generation API.
+
+---
+
+## Authentication
+
+<ParamField header="Authorization" type="string" required>
+  Bearer token with your API key (if server started with `--api-key`)
+
+  Format: `Bearer YOUR_API_KEY`
+</ParamField>
+
+---
+
+## Request Body
+
+<ParamField body="prompt" type="string" required>
+  Text description of the image to generate. Can be detailed and descriptive.
+
+  **Example**: `"A professional portrait of a person in natural lighting, photorealistic, high detail"`
+</ParamField>
+
+<ParamField body="model" type="string">
+  Model identifier (optional, ignored by HyperGen as server uses preloaded model)
+
+  **Note**: Unlike OpenAI, HyperGen uses the model specified when starting the server.
+</ParamField>
+
+<ParamField body="n" type="integer" default="1">
+  Number of images to generate (1-10)
+
+  **Range**: 1 to 10
+</ParamField>
+
+<ParamField body="size" type="string" default="1024x1024">
+  Image dimensions in format `WIDTHxHEIGHT`. Must be divisible by 8.
+
+  **Common sizes**:
+  - `"512x512"` - Fast, lower quality
+  - `"768x768"` - Balanced
+  - `"1024x1024"` - High quality (recommended for SDXL)
+  - `"1024x768"` - Landscape
+  - `"768x1024"` - Portrait
+
+  **Custom sizes**: Any dimensions divisible by 8 (e.g., `"1920x1080"`, `"2048x2048"`)
+</ParamField>
+
+<ParamField body="quality" type="string" default="standard">
+  Image quality setting (OpenAI compatibility parameter)
+
+  **Options**: `"standard"` or `"hd"`
+
+  **Note**: This parameter is accepted for OpenAI compatibility but doesn't affect HyperGen output. Use `num_inference_steps` instead.
+</ParamField>
+
+<ParamField body="response_format" type="string" default="url">
+  Response format for images
+
+  **Options**:
+  - `"url"` - Returns image URL (placeholder, not fully implemented)
+  - `"b64_json"` - Returns base64-encoded PNG image data
+</ParamField>
+
+### HyperGen Extensions
+
+<ParamField body="negative_prompt" type="string">
+  Description of what to avoid in the image. Helps improve quality by specifying undesired elements.
+
+  **Example**: `"blurry, low quality, distorted, watermark, text"`
+</ParamField>
+
+<ParamField body="num_inference_steps" type="integer" default="50">
+  Number of denoising steps. More steps = higher quality but slower generation.
+
+  **Range**: 1 to 150
+
+  **Recommended**:
+  - SDXL: 30-50 steps
+  - SDXL Turbo: 1-4 steps
+  - SD 1.5/2.1: 20-50 steps
+</ParamField>
+
+<ParamField body="guidance_scale" type="float" default="7.5">
+  Classifier-free guidance scale. Controls how closely the image follows the prompt.
+
+  **Range**: 1.0 to 20.0
+
+  **Recommended**:
+  - `7.5` - Standard, balanced
+  - `5.0-6.0` - More creative, less literal
+  - `10.0-15.0` - Very literal, strict adherence to prompt
+
+  **Note**: SDXL Turbo should use lower values (1.0-2.0)
+</ParamField>
+
+<ParamField body="seed" type="integer">
+  Random seed for reproducible generation. Use the same seed with the same prompt to get identical results.
+
+  **Example**: `42`, `12345`, `999999`
+</ParamField>
+
+<ParamField body="lora_path" type="string">
+  Path to LoRA weights to use for this request. Overrides server default.
+
+  **Example**: `"/path/to/custom_lora.safetensors"`
+</ParamField>
+
+<ParamField body="lora_scale" type="float" default="1.0">
+  LoRA influence strength
+
+  **Range**: 0.0 to 2.0
+  - `0.0` - No LoRA influence (base model only)
+  - `1.0` - Full LoRA influence (default)
+  - `>1.0` - Amplified LoRA influence
+</ParamField>
+
+---
+
+## Response
+
+<ResponseField name="created" type="integer">
+  Unix timestamp when the images were generated
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of generated image objects
+
+  <Expandable title="Image Object">
+    <ResponseField name="b64_json" type="string">
+      Base64-encoded PNG image data (if `response_format="b64_json"`)
+    </ResponseField>
+
+    <ResponseField name="url" type="string">
+      Image URL (if `response_format="url"`, currently returns `null`)
+    </ResponseField>
+
+    <ResponseField name="revised_prompt" type="string">
+      The prompt that was used (echoed back)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Examples
+
+### Basic Request
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:8000/v1/images/generations \
+  -H "Authorization: Bearer sk-hypergen-123456" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "A cat holding a sign that says Hello World",
+    "size": "1024x1024"
+  }'
+```
+
+```python Python
+import requests
+import base64
+from PIL import Image
+from io import BytesIO
+
+response = requests.post(
+    "http://localhost:8000/v1/images/generations",
+    headers={
+        "Authorization": "Bearer sk-hypergen-123456",
+        "Content-Type": "application/json"
+    },
+    json={
+        "prompt": "A cat holding a sign that says Hello World",
+        "size": "1024x1024",
+        "response_format": "b64_json"
+    }
+)
+
+# Decode base64 image
+image_data = response.json()["data"][0]["b64_json"]
+image = Image.open(BytesIO(base64.b64decode(image_data)))
+image.save("output.png")
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8000/v1/images/generations', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer sk-hypergen-123456',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    prompt: 'A cat holding a sign that says Hello World',
+    size: '1024x1024',
+    response_format: 'b64_json'
+  })
+});
+
+const data = await response.json();
+const imageData = data.data[0].b64_json;
+
+// Decode base64 in browser
+const img = document.createElement('img');
+img.src = 'data:image/png;base64,' + imageData;
+document.body.appendChild(img);
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "created": 1708472400,
+  "data": [
+    {
+      "b64_json": "iVBORw0KGgoAAAANSUhEUgAAA...",
+      "revised_prompt": "A cat holding a sign that says Hello World"
+    }
+  ]
+}
+```
+
+---
+
+### Advanced Request with All Parameters
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:8000/v1/images/generations \
+  -H "Authorization: Bearer sk-hypergen-123456" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "A futuristic cityscape at sunset, cyberpunk style, neon lights, highly detailed",
+    "negative_prompt": "blurry, low quality, distorted, watermark",
+    "n": 2,
+    "size": "1024x768",
+    "num_inference_steps": 50,
+    "guidance_scale": 7.5,
+    "seed": 42,
+    "response_format": "b64_json"
+  }'
+```
+
+```python Python
+import requests
+import base64
+from PIL import Image
+from io import BytesIO
+
+response = requests.post(
+    "http://localhost:8000/v1/images/generations",
+    headers={
+        "Authorization": "Bearer sk-hypergen-123456",
+        "Content-Type": "application/json"
+    },
+    json={
+        "prompt": "A futuristic cityscape at sunset, cyberpunk style, neon lights, highly detailed",
+        "negative_prompt": "blurry, low quality, distorted, watermark",
+        "n": 2,
+        "size": "1024x768",
+        "num_inference_steps": 50,
+        "guidance_scale": 7.5,
+        "seed": 42,
+        "response_format": "b64_json"
+    }
+)
+
+data = response.json()
+
+# Save all generated images
+for i, img_data in enumerate(data["data"]):
+    image_bytes = base64.b64decode(img_data["b64_json"])
+    image = Image.open(BytesIO(image_bytes))
+    image.save(f"output_{i}.png")
+```
+
+</CodeGroup>
+
+---
+
+### Using OpenAI Python Client
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="sk-hypergen-123456",
+    base_url="http://localhost:8000/v1"
+)
+
+response = client.images.generate(
+    prompt="A professional portrait in natural lighting",
+    n=1,
+    size="1024x1024"
+)
+
+# Note: With OpenAI client, response_format is always "url"
+# But HyperGen returns base64 in the background
+print(response.data[0].url)
+```
+
+---
+
+### Batch Generation
+
+Generate multiple variations of the same prompt:
+
+```python
+import requests
+import base64
+from PIL import Image
+from io import BytesIO
+
+response = requests.post(
+    "http://localhost:8000/v1/images/generations",
+    headers={
+        "Authorization": "Bearer sk-hypergen-123456",
+        "Content-Type": "application/json"
+    },
+    json={
+        "prompt": "A beautiful landscape painting",
+        "n": 4,  # Generate 4 variations
+        "size": "1024x1024",
+        "response_format": "b64_json"
+    }
+)
+
+# Save all 4 images
+for i, img_data in enumerate(response.json()["data"]):
+    image = Image.open(BytesIO(base64.b64decode(img_data["b64_json"])))
+    image.save(f"landscape_{i}.png")
+```
+
+---
+
+### Reproducible Generation
+
+Use seeds for consistent results:
+
+```python
+import requests
+
+# First generation with seed
+response1 = requests.post(
+    "http://localhost:8000/v1/images/generations",
+    headers={"Authorization": "Bearer sk-hypergen-123456"},
+    json={
+        "prompt": "A red apple on a wooden table",
+        "seed": 42,
+        "size": "1024x1024",
+        "response_format": "b64_json"
+    }
+)
+
+# Second generation with same seed - will produce identical image
+response2 = requests.post(
+    "http://localhost:8000/v1/images/generations",
+    headers={"Authorization": "Bearer sk-hypergen-123456"},
+    json={
+        "prompt": "A red apple on a wooden table",
+        "seed": 42,  # Same seed = same result
+        "size": "1024x1024",
+        "response_format": "b64_json"
+    }
+)
+
+# response1 and response2 will have identical images
+```
+
+---
+
+## Error Responses
+
+### 400 Bad Request
+
+Invalid request parameters:
+
+```json
+{
+  "detail": "Invalid size format: 1000x1000. Use format like '1024x1024'"
+}
+```
+
+**Common causes**:
+- Invalid size format (not in `WIDTHxHEIGHT` format)
+- Dimensions not divisible by 8
+- `n` parameter out of range (must be 1-10)
+- Invalid parameter types
+
+---
+
+### 401 Unauthorized
+
+Missing or invalid API key:
+
+```json
+{
+  "detail": "Invalid API key"
+}
+```
+
+**Causes**:
+- Missing `Authorization` header
+- Incorrect API key
+- Wrong authorization format
+
+---
+
+### 500 Internal Server Error
+
+Generation failed:
+
+```json
+{
+  "error": {
+    "message": "CUDA out of memory",
+    "type": "internal_error"
+  }
+}
+```
+
+**Common causes**:
+- Out of GPU memory (try smaller image size or fewer images)
+- Model loading error
+- Invalid LoRA path
+- Hardware issues
+
+---
+
+## Performance Tips
+
+<AccordionGroup>
+  <Accordion title="Faster Generation">
+    - Use SDXL Turbo with `num_inference_steps=4` for 10x faster generation
+    - Reduce image size (`512x512` instead of `1024x1024`)
+    - Lower `num_inference_steps` (25-30 for SDXL)
+    - Generate single images (`n=1`)
+  </Accordion>
+
+  <Accordion title="Higher Quality">
+    - Increase `num_inference_steps` (50-100)
+    - Use larger image sizes (`1024x1024` or larger)
+    - Use negative prompts to avoid unwanted elements
+    - Adjust `guidance_scale` (7.5-10.0 for SDXL)
+  </Accordion>
+
+  <Accordion title="Memory Management">
+    - Generate fewer images per request (reduce `n`)
+    - Use smaller image sizes
+    - Use `float16` dtype (default)
+    - Clear GPU cache between large batches
+  </Accordion>
+
+  <Accordion title="Reproducibility">
+    - Always set `seed` for consistent results
+    - Keep all parameters identical
+    - Note that different hardware may produce slight variations
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Model-Specific Recommendations
+
+### SDXL (Stable Diffusion XL)
+
+```json
+{
+  "prompt": "Your detailed prompt here",
+  "size": "1024x1024",
+  "num_inference_steps": 40,
+  "guidance_scale": 7.5
+}
+```
+
+### SDXL Turbo
+
+```json
+{
+  "prompt": "Your prompt here",
+  "size": "1024x1024",
+  "num_inference_steps": 4,
+  "guidance_scale": 1.0
+}
+```
+
+### Stable Diffusion 1.5/2.1
+
+```json
+{
+  "prompt": "Your prompt here",
+  "size": "512x512",
+  "num_inference_steps": 30,
+  "guidance_scale": 7.5
+}
+```
+
+---
+
+## Rate Limiting
+
+Requests are queued and processed sequentially:
+
+- Queue size visible via `/health` endpoint
+- Maximum queue size configurable via `--max-queue-size` (default: 100)
+- Requests block until completed
+- No explicit rate limit, limited by processing speed
+
+<Info>
+  Monitor the `/health` endpoint to check queue status and server load
+</Info>

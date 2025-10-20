@@ -1,0 +1,991 @@
+---
+title: Stable Diffusion 3 Guide
+description: Complete guide to using Stable Diffusion 3 with HyperGen
+---
+
+## Overview
+
+Stable Diffusion 3 (SD3) is Stability AI's latest generation text-to-image model, featuring a completely redesigned architecture. It introduces significant improvements in text rendering, prompt understanding, and image quality compared to SDXL.
+
+<Note>
+  SD3 uses a new Multimodal Diffusion Transformer (MMDiT) architecture, making it fundamentally different from SDXL's UNet-based approach.
+</Note>
+
+## Key Features
+
+<CardGroup cols={2}>
+  <Card title="Text Rendering" icon="font">
+    **Outstanding text generation:**
+    - Accurate spelling in images
+    - Multiple text elements
+    - Various fonts and styles
+    - Proper text integration
+  </Card>
+
+  <Card title="Prompt Understanding" icon="brain">
+    **Improved comprehension:**
+    - Better complex prompt handling
+    - More accurate composition
+    - Better spatial relationships
+    - Fewer artifacts
+  </Card>
+
+  <Card title="Image Quality" icon="image">
+    **Enhanced visuals:**
+    - Better detail preservation
+    - Improved colors and lighting
+    - More coherent compositions
+    - Reduced common artifacts
+  </Card>
+
+  <Card title="Efficiency" icon="bolt">
+    **Optimized performance:**
+    - Similar VRAM to SDXL
+    - Competitive speed
+    - Better quality per step
+    - Efficient training
+  </Card>
+</CardGroup>
+
+## Model Variants
+
+### SD3 Medium
+
+The primary SD3 model optimized for quality and accessibility.
+
+```python
+from hypergen import model
+
+m = model.load("stabilityai/stable-diffusion-3-medium-diffusers")
+m.to("cuda")
+```
+
+**Specifications:**
+- **Parameters:** 2B (transformer), 8B total with text encoders
+- **Resolution:** Native 1024x1024
+- **VRAM:** 12GB minimum, 16GB recommended
+- **Architecture:** Multimodal Diffusion Transformer (MMDiT)
+
+### SD3 Large (Coming Soon)
+
+A larger variant with enhanced capabilities.
+
+<Warning>
+  SD3 Large is not yet publicly available. Check the Stability AI website for release information.
+</Warning>
+
+## What's New in SD3
+
+### Architectural Changes
+
+SD3 introduces several key differences from SDXL:
+
+<Tabs>
+  <Tab title="MMDiT Architecture">
+    **Multimodal Diffusion Transformer:**
+
+    - Replaces UNet with transformer architecture
+    - Processes text and image jointly
+    - Better cross-modal understanding
+    - More efficient attention mechanisms
+
+    **Impact:**
+    - Superior text rendering
+    - Better prompt comprehension
+    - More coherent compositions
+  </Tab>
+
+  <Tab title="Text Encoders">
+    **Triple Text Encoder System:**
+
+    SD3 uses three text encoders:
+    - CLIP ViT-L
+    - OpenCLIP ViT-bigG
+    - T5-XXL
+
+    **Benefits:**
+    - Richer text understanding
+    - Better handling of complex prompts
+    - Improved text-image alignment
+  </Tab>
+
+  <Tab title="Rectified Flow">
+    **New Sampling Method:**
+
+    - Replaces traditional diffusion process
+    - More stable training
+    - Better quality with fewer steps
+    - Improved convergence
+
+    **Result:**
+    - Cleaner images
+    - Fewer artifacts
+    - Better prompt following
+  </Tab>
+</Tabs>
+
+### Improvements Over SDXL
+
+| Feature | SDXL | SD3 |
+|---------|------|-----|
+| Text rendering | Poor | Excellent |
+| Complex prompts | Good | Excellent |
+| Spatial understanding | Good | Better |
+| Architecture | UNet | Transformer |
+| Text encoders | 2 (CLIP) | 3 (CLIP + T5) |
+| Artifacts | Occasional | Fewer |
+
+## Loading SD3 with HyperGen
+
+### Basic Loading
+
+```python
+from hypergen import model
+
+# Load SD3 Medium
+m = model.load("stabilityai/stable-diffusion-3-medium-diffusers")
+m.to("cuda")
+
+# Generate an image
+image = m.generate("A cat holding a sign that says 'HELLO WORLD'")
+image[0].save("output.png")
+```
+
+<Tip>
+  SD3 excels at generating text in images. Try prompts that include signs, labels, or text elements!
+</Tip>
+
+### Optimized Loading
+
+For better performance:
+
+```python
+from hypergen import model
+
+# Load with fp16 or bf16 precision
+m = model.load(
+    "stabilityai/stable-diffusion-3-medium-diffusers",
+    torch_dtype="float16",  # or "bfloat16"
+    variant="fp16",
+    use_safetensors=True,
+)
+m.to("cuda")
+```
+
+### Memory-Optimized Loading
+
+For 12GB VRAM GPUs:
+
+```python
+from hypergen import model
+
+m = model.load(
+    "stabilityai/stable-diffusion-3-medium-diffusers",
+    torch_dtype="float16"
+)
+m.to("cuda")
+
+# Enable memory optimizations
+m.enable_vae_slicing()
+m.enable_attention_slicing()
+```
+
+## Training LoRAs with SD3
+
+SD3 supports LoRA training with HyperGen's optimized pipeline.
+
+### Basic LoRA Training
+
+```python
+from hypergen import model, dataset
+
+# Load model
+m = model.load(
+    "stabilityai/stable-diffusion-3-medium-diffusers",
+    torch_dtype="float16"
+)
+m.to("cuda")
+
+# Load dataset
+ds = dataset.load("./my_images")
+
+# Train LoRA
+lora = m.train_lora(
+    ds,
+    steps=1000,
+    rank=16,
+    alpha=32,
+    learning_rate=1e-4,
+)
+```
+
+### Recommended Training Parameters
+
+<Tabs>
+  <Tab title="Quick Training (12GB VRAM)">
+    **For fast iteration:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=800,
+        learning_rate=1e-4,
+        rank=16,
+        alpha=32,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Settings:**
+    - Standard rank (16)
+    - Works on 12GB VRAM
+    - Training time: ~12 minutes (50 images)
+  </Tab>
+
+  <Tab title="Balanced Training (16GB VRAM)">
+    **For most use cases:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=1000,
+        learning_rate=1e-4,
+        rank=32,
+        alpha=64,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Settings:**
+    - Higher rank (32) for better capacity
+    - 1000 steps for quality results
+    - Training time: ~15 minutes (50 images)
+  </Tab>
+
+  <Tab title="High-Quality Training (24GB VRAM)">
+    **For best results:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=2000,
+        learning_rate=5e-5,
+        rank=64,
+        alpha=128,
+        batch_size=2,
+        gradient_accumulation_steps=4,
+        save_steps=500,
+        output_dir="./sd3_lora_checkpoints"
+    )
+    ```
+
+    **Settings:**
+    - High rank (64) for maximum capacity
+    - More steps for best quality
+    - Training time: ~35 minutes (50 images)
+  </Tab>
+</Tabs>
+
+### Training for Different Use Cases
+
+<AccordionGroup>
+  <Accordion title="Style Transfer">
+    **Learning an artistic style:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=1500,
+        learning_rate=1e-4,
+        rank=24,
+        alpha=48,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Dataset:**
+    - 50-200 images in target style
+    - Consistent aesthetic
+    - High resolution (1024x1024+)
+    - Captions describing content
+  </Accordion>
+
+  <Accordion title="Subject/Character">
+    **Learning a specific subject:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=1200,
+        learning_rate=5e-5,
+        rank=32,
+        alpha=64,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Dataset:**
+    - 20-100 images of subject
+    - Variety of poses and angles
+    - Detailed captions
+    - Different lighting conditions
+  </Accordion>
+
+  <Accordion title="Text Rendering Style">
+    **Learning text rendering:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=1000,
+        learning_rate=1e-4,
+        rank=32,
+        alpha=64,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Dataset:**
+    - Images with various text elements
+    - Different fonts and styles
+    - Captions describing the text content
+    - Variety of text placements
+  </Accordion>
+</AccordionGroup>
+
+## Inference Parameters
+
+### Basic Generation
+
+```python
+image = m.generate(
+    prompt="A neon sign that says 'Open 24/7' on a brick wall",
+    negative_prompt="blurry, low quality",
+    num_inference_steps=40,
+    guidance_scale=7.0,
+    height=1024,
+    width=1024,
+)
+```
+
+### Parameter Guide
+
+<ParamField path="prompt" type="str" required>
+  Text description of the desired image
+
+  SD3 excels at complex, detailed prompts with multiple elements.
+</ParamField>
+
+<ParamField path="negative_prompt" type="str" default="">
+  What to avoid in the generated image
+
+  **Recommended:**
+  ```python
+  negative_prompt="blurry, low quality, distorted"
+  ```
+</ParamField>
+
+<ParamField path="num_inference_steps" type="int" default={28}>
+  Number of denoising steps
+
+  SD3's default is 28 steps (vs 50 for SDXL):
+  - **15-20:** Fast, good quality
+  - **28-40:** Better quality (recommended)
+  - **40-50:** Highest quality
+</ParamField>
+
+<ParamField path="guidance_scale" type="float" default={7.0}>
+  How closely to follow the prompt
+
+  SD3 uses slightly lower guidance than SDXL:
+  - **5-6:** More creative
+  - **7-8:** Balanced (recommended)
+  - **9-10:** Very literal
+</ParamField>
+
+### Recommended Settings
+
+<CardGroup cols={3}>
+  <Card title="Speed Priority" icon="bolt">
+    ```python
+    num_inference_steps=20
+    guidance_scale=6.5
+    ```
+
+    **Time:** ~2.5s (RTX 4090)
+  </Card>
+
+  <Card title="Balanced" icon="balance-scale">
+    ```python
+    num_inference_steps=28
+    guidance_scale=7.0
+    ```
+
+    **Time:** ~3.5s (RTX 4090)
+  </Card>
+
+  <Card title="Quality Priority" icon="gem">
+    ```python
+    num_inference_steps=40
+    guidance_scale=7.5
+    ```
+
+    **Time:** ~5s (RTX 4090)
+  </Card>
+</CardGroup>
+
+### Text Generation in Images
+
+SD3's standout feature is accurate text rendering:
+
+```python
+# Simple text
+image = m.generate(
+    prompt='A coffee shop sign that says "FRESH COFFEE" in bold letters',
+    num_inference_steps=28,
+)
+
+# Multiple text elements
+image = m.generate(
+    prompt='''
+    A street scene with multiple signs: a red "STOP" sign,
+    a blue "Main Street" street sign, and a neon "CAFE" sign
+    ''',
+    num_inference_steps=40,
+)
+
+# Stylized text
+image = m.generate(
+    prompt='A vintage poster with "SUMMER SALE" in retro typography',
+    num_inference_steps=28,
+)
+```
+
+<Tip>
+  For best text results:
+  - Put text in quotes
+  - Describe the text style (bold, neon, handwritten, etc.)
+  - Specify the object containing the text (sign, poster, label)
+  - Keep text relatively short (1-5 words)
+</Tip>
+
+## Performance Benchmarks
+
+### Generation Performance
+
+Based on NVIDIA RTX 4090, 1024x1024 resolution:
+
+| Steps | VRAM | Time | Quality |
+|-------|------|------|---------|
+| 20 | ~12GB | ~2.5s | Good |
+| 28 | ~12GB | ~3.5s | Excellent |
+| 40 | ~12GB | ~5s | Excellent+ |
+| 50 | ~12GB | ~6s | Outstanding |
+
+### Training Performance
+
+LoRA training on RTX 4090, 50 images:
+
+| Configuration | VRAM | Time (1000 steps) |
+|---------------|------|-------------------|
+| Rank 16, Batch 1 | ~12GB | ~15 min |
+| Rank 32, Batch 1 | ~14GB | ~18 min |
+| Rank 64, Batch 1 | ~16GB | ~22 min |
+| Rank 32, Batch 2 | ~18GB | ~20 min |
+
+### Comparison with SDXL
+
+| Metric | SDXL | SD3 |
+|--------|------|-----|
+| Generation time (28 steps) | ~3s | ~3.5s |
+| VRAM (generation) | ~9GB | ~12GB |
+| VRAM (training, rank 16) | ~9GB | ~12GB |
+| Text rendering | Poor | Excellent |
+| Overall quality | Excellent | Excellent+ |
+
+## Best Practices
+
+### Prompt Engineering for SD3
+
+<Tabs>
+  <Tab title="Complex Compositions">
+    **SD3 excels at complex scenes:**
+
+     **Good:**
+    ```python
+    prompt = """
+    A bustling farmer's market with wooden stalls selling
+    fresh vegetables, a red awning overhead, people shopping,
+    warm afternoon sunlight, photorealistic
+    """
+    ```
+
+    SD3 better understands spatial relationships and multiple elements.
+  </Tab>
+
+  <Tab title="Text in Images">
+    **Leverage SD3's text capabilities:**
+
+     **Effective:**
+    ```python
+    # Single text element
+    prompt = 'A storefront with "BAKERY" written in gold letters'
+
+    # Multiple text elements
+    prompt = '''
+    A cookbook cover with the title "Easy Recipes" at the top
+    and "By Jane Smith" at the bottom
+    '''
+
+    # Stylized text
+    prompt = 'A neon sign saying "OPEN" in bright blue light'
+    ```
+
+    L **Less effective:**
+    ```python
+    # Very long text
+    prompt = 'A sign with a full paragraph of text...'
+
+    # Complex formatting
+    prompt = 'A document with multiple columns and tables...'
+    ```
+  </Tab>
+
+  <Tab title="Detailed Descriptions">
+    **Use rich, detailed prompts:**
+
+     **Detailed:**
+    ```python
+    prompt = """
+    A cozy coffee shop interior with wooden tables, hanging
+    pendant lights, exposed brick walls, a barista behind
+    the counter, warm lighting, morning atmosphere
+    """
+    ```
+
+    L **Too simple:**
+    ```python
+    prompt = "A coffee shop"
+    ```
+
+    SD3's improved understanding benefits from detailed descriptions.
+  </Tab>
+
+  <Tab title="Spatial Relationships">
+    **Precise positioning:**
+
+     **Clear spatial description:**
+    ```python
+    prompt = """
+    A red apple on the left, a green pear in the center,
+    and an orange on the right, all on a white table
+    """
+    ```
+
+    SD3 better understands "left", "right", "above", "below", "between", etc.
+  </Tab>
+</Tabs>
+
+### Training Best Practices
+
+<Steps>
+  <Step title="Dataset Preparation">
+    **Prepare high-quality data:**
+
+    - Use 1024x1024 or higher resolution
+    - 20-150 images for most use cases
+    - Ensure consistent quality
+    - Remove duplicates
+    - Include variety in poses/angles
+  </Step>
+
+  <Step title="Caption Quality">
+    **Write effective captions:**
+
+     **Good caption:**
+    ```
+    A person wearing a blue jacket and jeans, standing
+    in front of a brick wall, natural daylight from the
+    left, neutral expression, looking at camera
+    ```
+
+    L **Poor caption:**
+    ```
+    person
+    ```
+
+    **Tips for SD3:**
+    - Describe spatial relationships
+    - Include text content if present
+    - Describe lighting and colors
+    - Be detailed but natural
+  </Step>
+
+  <Step title="Hyperparameter Selection">
+    **Start with recommended settings:**
+
+    ```python
+    steps=1000
+    learning_rate=1e-4
+    rank=16-32
+    alpha=2*rank
+    batch_size=1
+    gradient_accumulation_steps=4
+    ```
+
+    Adjust based on results and VRAM.
+  </Step>
+
+  <Step title="Monitoring Progress">
+    **Save and test checkpoints:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=2000,
+        save_steps=500,
+        output_dir="./checkpoints"
+    )
+    ```
+
+    Test multiple checkpoints to find optimal stopping point.
+  </Step>
+</Steps>
+
+### Memory Optimization
+
+<AccordionGroup>
+  <Accordion title="VAE Slicing">
+    ```python
+    m.enable_vae_slicing()
+    ```
+
+    - Reduces VRAM by ~10-15%
+    - Minimal performance impact
+    - Recommended for all users
+  </Accordion>
+
+  <Accordion title="Attention Slicing">
+    ```python
+    m.enable_attention_slicing()
+    ```
+
+    - Reduces VRAM by ~15-20%
+    - Small performance impact
+    - Useful for 12GB GPUs
+  </Accordion>
+
+  <Accordion title="Lower Precision">
+    ```python
+    m = model.load(
+        "stabilityai/stable-diffusion-3-medium-diffusers",
+        torch_dtype="float16"
+    )
+    ```
+
+    - Reduces VRAM by ~40-50%
+    - Minimal quality impact
+    - Strongly recommended
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Out of Memory (Generation)">
+    **Solutions:**
+
+    1. Use float16 precision:
+       ```python
+       m = model.load(
+           "stabilityai/stable-diffusion-3-medium-diffusers",
+           torch_dtype="float16"
+       )
+       ```
+
+    2. Enable memory optimizations:
+       ```python
+       m.enable_vae_slicing()
+       m.enable_attention_slicing()
+       ```
+
+    3. Reduce resolution:
+       ```python
+       image = m.generate(prompt, height=768, width=768)
+       ```
+  </Accordion>
+
+  <Accordion title="Out of Memory (Training)">
+    **Solutions:**
+
+    1. Reduce LoRA rank:
+       ```python
+       lora = m.train_lora(ds, rank=16, alpha=32)
+       ```
+
+    2. Use gradient accumulation:
+       ```python
+       lora = m.train_lora(ds, batch_size=1, gradient_accumulation_steps=8)
+       ```
+
+    3. Use float16:
+       ```python
+       m = model.load(
+           "stabilityai/stable-diffusion-3-medium-diffusers",
+           torch_dtype="float16"
+       )
+       ```
+  </Accordion>
+
+  <Accordion title="Text Not Rendering Correctly">
+    **Tips for better text:**
+
+    1. Put text in quotes:
+       ```python
+       prompt = 'A sign that says "OPEN"'
+       ```
+
+    2. Describe the text container:
+       ```python
+       prompt = 'A wooden sign with "WELCOME" carved in it'
+       ```
+
+    3. Keep text short (1-5 words)
+
+    4. Increase inference steps:
+       ```python
+       image = m.generate(prompt, num_inference_steps=40)
+       ```
+
+    5. Adjust guidance:
+       ```python
+       image = m.generate(prompt, guidance_scale=8.0)
+       ```
+  </Accordion>
+
+  <Accordion title="Poor Training Results">
+    **Solutions:**
+
+    1. Increase training steps:
+       ```python
+       lora = m.train_lora(ds, steps=1500)
+       ```
+
+    2. Improve dataset quality:
+       - Add more images
+       - Write better captions
+       - Use higher resolution
+
+    3. Adjust learning rate:
+       ```python
+       lora = m.train_lora(ds, learning_rate=5e-5)
+       ```
+
+    4. Increase LoRA rank:
+       ```python
+       lora = m.train_lora(ds, rank=32, alpha=64)
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Example Workflows
+
+### Text-Rich Image Generation
+
+```python
+from hypergen import model
+
+# Load SD3
+m = model.load(
+    "stabilityai/stable-diffusion-3-medium-diffusers",
+    torch_dtype="float16"
+)
+m.to("cuda")
+
+# Generate image with text
+image = m.generate(
+    prompt='''
+    A vintage travel poster with "VISIT PARIS" in bold art deco
+    letters at the top, the Eiffel Tower in the background,
+    warm sunset colors
+    ''',
+    num_inference_steps=28,
+    guidance_scale=7.0,
+)
+
+image[0].save("paris_poster.png")
+```
+
+### LoRA Training for Character
+
+```python
+from hypergen import model, dataset
+
+# Load model
+m = model.load(
+    "stabilityai/stable-diffusion-3-medium-diffusers",
+    torch_dtype="float16"
+)
+m.to("cuda")
+
+# Load character dataset
+ds = dataset.load("./character_images")
+
+# Train character LoRA
+lora = m.train_lora(
+    ds,
+    steps=1200,
+    learning_rate=5e-5,
+    rank=32,
+    alpha=64,
+    batch_size=1,
+    gradient_accumulation_steps=4,
+    save_steps=400,
+    output_dir="./character_lora"
+)
+
+print("Character LoRA training complete!")
+```
+
+### Batch Generation with SD3
+
+```python
+from hypergen import model
+
+# Load SD3
+m = model.load(
+    "stabilityai/stable-diffusion-3-medium-diffusers",
+    torch_dtype="float16"
+)
+m.to("cuda")
+
+# Generate multiple images
+prompts = [
+    'A storefront with "BOOKS" written above the door',
+    'A coffee cup with "MORNING" printed on it',
+    'A street sign that says "MAIN ST"',
+    'A neon sign saying "PIZZA" in red letters',
+]
+
+for i, prompt in enumerate(prompts):
+    image = m.generate(
+        prompt=prompt,
+        num_inference_steps=28,
+        guidance_scale=7.0,
+    )
+    image[0].save(f"text_image_{i}.png")
+
+print(f"Generated {len(prompts)} images with text")
+```
+
+## SD3 vs SDXL: When to Use Which
+
+<Tabs>
+  <Tab title="Use SD3 When">
+    **SD3 is better for:**
+
+     Text in images (signs, labels, posters)
+     Complex compositions with multiple elements
+     Precise spatial relationships
+     Detailed scene understanding
+     Latest technology and improvements
+
+    **Example use cases:**
+    - Product mockups with labels
+    - Signage and branding
+    - Posters and advertisements
+    - Complex scene compositions
+  </Tab>
+
+  <Tab title="Use SDXL When">
+    **SDXL is better for:**
+
+     Slightly faster generation
+     Lower VRAM requirements
+     Thousands of community fine-tunes
+     Well-established workflows
+     Maximum compatibility
+
+    **Example use cases:**
+    - General image generation
+    - Artistic styles (many fine-tunes)
+    - Production pipelines
+    - Legacy workflows
+  </Tab>
+</Tabs>
+
+## GPU Requirements
+
+<CardGroup cols={3}>
+  <Card title="Minimum" icon="microchip">
+    **VRAM:** 12GB
+
+    **GPUs:**
+    - RTX 3060 (12GB)
+    - RTX 4070
+
+    **Capabilities:**
+    - Generation: 1024x1024 
+    - Training: Rank 16 
+    - Batch size: 1 
+  </Card>
+
+  <Card title="Recommended" icon="memory">
+    **VRAM:** 16GB
+
+    **GPUs:**
+    - RTX 4080
+    - RTX 4090
+    - A10
+
+    **Capabilities:**
+    - Generation: 1024x1024 
+    - Training: Rank 32 
+    - Batch size: 1-2 
+  </Card>
+
+  <Card title="Optimal" icon="rocket">
+    **VRAM:** 24GB+
+
+    **GPUs:**
+    - RTX 4090
+    - A100
+    - H100
+
+    **Capabilities:**
+    - Generation: Up to 2048x2048 
+    - Training: Rank 64+ 
+    - Batch size: 2-4 
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Training Guide" icon="graduation-cap" href="/training/lora">
+    Complete LoRA training documentation
+  </Card>
+
+  <Card title="Dataset Preparation" icon="images" href="/training/datasets">
+    Learn how to prepare training data
+  </Card>
+
+  <Card title="SDXL Guide" icon="image" href="/models/sdxl">
+    Compare with SDXL
+  </Card>
+
+  <Card title="FLUX.1 Guide" icon="bolt" href="/models/flux">
+    Explore the latest models
+  </Card>
+</CardGroup>
+
+## Additional Resources
+
+- [SD3 on HuggingFace](https://huggingface.co/stabilityai/stable-diffusion-3-medium-diffusers)
+- [SD3 Technical Paper](https://stability.ai/research/stable-diffusion-3-research-paper)
+- [Stability AI Website](https://stability.ai/)

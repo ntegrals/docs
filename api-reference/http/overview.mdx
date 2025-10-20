@@ -1,0 +1,391 @@
+---
+title: 'HTTP API Overview'
+description: 'OpenAI-compatible REST API for image generation'
+---
+
+## Introduction
+
+HyperGen provides an OpenAI-compatible HTTP API for image generation. This allows you to:
+
+- Generate images via REST API calls
+- Integrate with OpenAI client libraries
+- Deploy as a scalable service
+- Use familiar OpenAI API patterns
+
+The API is fully compatible with OpenAI's image generation endpoints, making it a drop-in replacement for services using the OpenAI API.
+
+---
+
+## Starting the Server
+
+Start the HyperGen API server using the CLI:
+
+```bash
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --device cuda \
+  --api-key your-secret-key
+```
+
+### Server Options
+
+<ParamField path="model" type="string" required>
+  HuggingFace model ID or local path to model
+</ParamField>
+
+<ParamField path="--host" type="string" default="0.0.0.0">
+  Host address to bind to. Use `0.0.0.0` to accept connections from any IP.
+</ParamField>
+
+<ParamField path="--port" type="integer" default="8000">
+  Port to listen on
+</ParamField>
+
+<ParamField path="--device" type="string" default="cuda">
+  Device to run model on: `cuda`, `cpu`, or `mps`
+</ParamField>
+
+<ParamField path="--dtype" type="string" default="float16">
+  Model data type: `float16`, `bfloat16`, or `float32`
+</ParamField>
+
+<ParamField path="--api-key" type="string">
+  API key for authentication. If not set, authentication is disabled.
+</ParamField>
+
+<ParamField path="--lora" type="string">
+  Path to LoRA weights to load
+</ParamField>
+
+<ParamField path="--max-queue-size" type="integer" default="100">
+  Maximum number of requests in queue
+</ParamField>
+
+<ParamField path="--max-batch-size" type="integer" default="1">
+  Maximum batch size for processing
+</ParamField>
+
+### Example
+
+```bash
+# Start server with authentication
+hypergen serve stabilityai/sdxl-turbo \
+  --api-key sk-hypergen-123456 \
+  --device cuda \
+  --port 8000
+
+# Start server with LoRA
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 \
+  --lora ./my_lora_weights \
+  --api-key sk-hypergen-123456
+
+# Start server without authentication (development only)
+hypergen serve stabilityai/sdxl-turbo \
+  --device cuda \
+  --port 8000
+```
+
+---
+
+## Authentication
+
+### API Key
+
+If you start the server with `--api-key`, all requests must include the API key in the `Authorization` header.
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:8000/v1/images/generations \
+  -H "Authorization: Bearer sk-hypergen-123456" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "A cat holding a sign"
+  }'
+```
+
+```python Python
+import requests
+
+headers = {
+    "Authorization": "Bearer sk-hypergen-123456",
+    "Content-Type": "application/json"
+}
+
+response = requests.post(
+    "http://localhost:8000/v1/images/generations",
+    headers=headers,
+    json={"prompt": "A cat holding a sign"}
+)
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8000/v1/images/generations', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer sk-hypergen-123456',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    prompt: 'A cat holding a sign'
+  })
+});
+```
+
+</CodeGroup>
+
+### Error Responses
+
+<ResponseField name="401 Unauthorized" type="error">
+  Returned when:
+  - Authorization header is missing
+  - API key is invalid
+  - API key format is incorrect
+</ResponseField>
+
+```json
+{
+  "detail": "Invalid API key"
+}
+```
+
+---
+
+## Base URL
+
+When running locally, the default base URL is:
+
+```
+http://localhost:8000
+```
+
+All endpoints are prefixed with `/v1` to match OpenAI's API structure:
+
+```
+http://localhost:8000/v1/images/generations
+http://localhost:8000/v1/models
+```
+
+---
+
+## Endpoints
+
+HyperGen provides the following API endpoints:
+
+<Card title="POST /v1/images/generations" icon="image" href="/api-reference/http/generate">
+  Generate images from text prompts (OpenAI-compatible)
+</Card>
+
+<Card title="GET /v1/models" icon="list" href="/api-reference/http/models">
+  List available models (OpenAI-compatible)
+</Card>
+
+<Card title="GET /health" icon="heart-pulse" href="/api-reference/http/health">
+  Health check endpoint for monitoring
+</Card>
+
+---
+
+## OpenAI Compatibility
+
+HyperGen's HTTP API is designed to be compatible with OpenAI's image generation API. This means:
+
+1. **Drop-in Replacement**: Use HyperGen as a replacement for OpenAI's DALL-E API
+2. **Same Request Format**: Request and response formats match OpenAI's spec
+3. **Client Library Support**: Works with OpenAI's official client libraries
+
+### Using OpenAI Python Library
+
+```python
+from openai import OpenAI
+
+# Point to your HyperGen server
+client = OpenAI(
+    api_key="sk-hypergen-123456",
+    base_url="http://localhost:8000/v1"
+)
+
+# Use exactly like OpenAI's API
+response = client.images.generate(
+    prompt="A cat holding a sign",
+    model="stabilityai/sdxl-turbo",  # Ignored by HyperGen
+    n=1,
+    size="1024x1024"
+)
+
+image_url = response.data[0].url
+```
+
+### Using OpenAI Node.js Library
+
+```javascript
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: 'sk-hypergen-123456',
+  baseURL: 'http://localhost:8000/v1'
+});
+
+const response = await client.images.generate({
+  prompt: 'A cat holding a sign',
+  n: 1,
+  size: '1024x1024'
+});
+
+console.log(response.data[0].url);
+```
+
+---
+
+## HyperGen Extensions
+
+While maintaining OpenAI compatibility, HyperGen adds several extensions:
+
+### Extended Parameters
+
+<ParamField path="negative_prompt" type="string">
+  Negative prompt to guide what to avoid
+</ParamField>
+
+<ParamField path="num_inference_steps" type="integer" default="50">
+  Number of denoising steps (quality vs speed)
+</ParamField>
+
+<ParamField path="guidance_scale" type="float" default="7.5">
+  How closely to follow the prompt
+</ParamField>
+
+<ParamField path="seed" type="integer">
+  Random seed for reproducible results
+</ParamField>
+
+<ParamField path="lora_path" type="string">
+  Path to LoRA weights (overrides server default)
+</ParamField>
+
+<ParamField path="lora_scale" type="float" default="1.0">
+  LoRA influence strength (0.0 to 2.0)
+</ParamField>
+
+### Example with Extensions
+
+```python
+import requests
+
+response = requests.post(
+    "http://localhost:8000/v1/images/generations",
+    headers={"Authorization": "Bearer sk-hypergen-123456"},
+    json={
+        "prompt": "A beautiful landscape",
+        "negative_prompt": "blurry, low quality",
+        "num_inference_steps": 50,
+        "guidance_scale": 7.5,
+        "seed": 42,
+        "size": "1024x1024"
+    }
+)
+```
+
+---
+
+## Error Handling
+
+The API uses standard HTTP status codes:
+
+<ResponseField name="200 OK" type="success">
+  Request succeeded
+</ResponseField>
+
+<ResponseField name="400 Bad Request" type="error">
+  Invalid request parameters
+</ResponseField>
+
+<ResponseField name="401 Unauthorized" type="error">
+  Missing or invalid API key
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error" type="error">
+  Server error during generation
+</ResponseField>
+
+### Error Response Format
+
+All errors return a JSON response:
+
+```json
+{
+  "detail": "Error message describing what went wrong"
+}
+```
+
+Or in OpenAI format:
+
+```json
+{
+  "error": {
+    "message": "Error message",
+    "type": "internal_error"
+  }
+}
+```
+
+---
+
+## Rate Limiting
+
+HyperGen uses a request queue system:
+
+- Maximum queue size: Configurable via `--max-queue-size` (default: 100)
+- Requests beyond the queue size will wait
+- Queue status available via `/health` endpoint
+
+<Info>
+  Monitor queue size using the `/health` endpoint to track server load
+</Info>
+
+---
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Production Deployment">
+    - Always use `--api-key` for authentication
+    - Set appropriate `--max-queue-size` based on expected traffic
+    - Use a reverse proxy (nginx, Caddy) for HTTPS
+    - Monitor the `/health` endpoint
+    - Run on a GPU-enabled instance
+  </Accordion>
+
+  <Accordion title="Performance Optimization">
+    - Use SDXL Turbo for faster generation (4 steps vs 50)
+    - Adjust `--max-batch-size` for throughput vs latency
+    - Use `float16` dtype for 2x speed improvement
+    - Keep queue size reasonable to avoid memory issues
+  </Accordion>
+
+  <Accordion title="Development">
+    - Run without `--api-key` for easier testing
+    - Use `--reload` flag for auto-restart on code changes
+    - Monitor logs for debugging
+    - Test with `/health` endpoint first
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Generate Images" icon="image" href="/api-reference/http/generate">
+    Learn about the image generation endpoint
+  </Card>
+
+  <Card title="List Models" icon="list" href="/api-reference/http/models">
+    Query available models
+  </Card>
+
+  <Card title="Health Checks" icon="heart-pulse" href="/api-reference/http/health">
+    Monitor server health and status
+  </Card>
+</CardGroup>

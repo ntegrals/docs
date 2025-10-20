@@ -1,0 +1,461 @@
+---
+title: Supported Models
+description: Complete list of compatible diffusion models
+---
+
+## Overview
+
+HyperGen works with **any diffusers-compatible model** from HuggingFace. Below are popular models that have been tested and work well with HyperGen.
+
+<Note>
+  HyperGen uses the diffusers library under the hood, so any model with a `DiffusionPipeline` should work.
+</Note>
+
+## Image Generation Models
+
+### FLUX.1
+
+Black Forest Labs' state-of-the-art image generation model.
+
+<CardGroup cols={2}>
+  <Card title="FLUX.1 Dev" icon="flask">
+    **Model ID:** `black-forest-labs/FLUX.1-dev`
+
+    **Best for:** High-quality, detailed images
+
+    **Requirements:**
+    - 16GB+ VRAM
+    - bfloat16 dtype recommended
+
+    **Usage:**
+    ```python
+    m = model.load("black-forest-labs/FLUX.1-dev", torch_dtype="bfloat16")
+    ```
+  </Card>
+
+  <Card title="FLUX.1 Schnell" icon="bolt">
+    **Model ID:** `black-forest-labs/FLUX.1-schnell`
+
+    **Best for:** Fast generation
+
+    **Requirements:**
+    - 12GB+ VRAM
+    - Faster than Dev variant
+
+    **Usage:**
+    ```python
+    m = model.load("black-forest-labs/FLUX.1-schnell", torch_dtype="bfloat16")
+    ```
+  </Card>
+</CardGroup>
+
+**Recommended Settings:**
+- dtype: `bfloat16`
+- LoRA rank: 32-64
+- Training steps: 1500-2500
+
+### Stable Diffusion XL (SDXL)
+
+Stability AI's flagship image generation model.
+
+<CardGroup cols={2}>
+  <Card title="SDXL Base" icon="image">
+    **Model ID:** `stabilityai/stable-diffusion-xl-base-1.0`
+
+    **Best for:** General-purpose, high-quality images
+
+    **Requirements:**
+    - 8GB+ VRAM
+    - Most popular choice
+
+    **Usage:**
+    ```python
+    m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+    ```
+  </Card>
+
+  <Card title="SDXL Turbo" icon="rabbit">
+    **Model ID:** `stabilityai/sdxl-turbo`
+
+    **Best for:** Fast generation (1-4 steps)
+
+    **Requirements:**
+    - 8GB+ VRAM
+    - Optimized for speed
+
+    **Usage:**
+    ```python
+    m = model.load("stabilityai/sdxl-turbo")
+    ```
+  </Card>
+</CardGroup>
+
+**Recommended Settings:**
+- dtype: `float16`
+- LoRA rank: 16-32
+- Training steps: 1000-2000
+
+### Stable Diffusion 3 (SD3)
+
+Latest generation Stability AI model with improved text rendering.
+
+<Card title="SD3 Medium" icon="sparkles">
+  **Model ID:** `stabilityai/stable-diffusion-3-medium-diffusers`
+
+  **Best for:** Text rendering, detailed scenes
+
+  **Requirements:**
+  - 12GB+ VRAM
+  - Excellent prompt following
+
+  **Usage:**
+  ```python
+  m = model.load("stabilityai/stable-diffusion-3-medium-diffusers")
+  ```
+</Card>
+
+**Recommended Settings:**
+- dtype: `float16` or `bfloat16`
+- LoRA rank: 16-32
+- Training steps: 1000-2000
+
+### Stable Diffusion 1.5
+
+Classic Stable Diffusion - lightweight and fast.
+
+<CardGroup cols={2}>
+  <Card title="SD 1.5" icon="feather">
+    **Model ID:** `runwayml/stable-diffusion-v1-5`
+
+    **Best for:** Fast generation, low VRAM
+
+    **Requirements:**
+    - 6GB+ VRAM
+    - Lightweight and fast
+
+    **Usage:**
+    ```python
+    m = model.load("runwayml/stable-diffusion-v1-5")
+    ```
+  </Card>
+
+  <Card title="SD 1.4" icon="feather">
+    **Model ID:** `CompVis/stable-diffusion-v1-4`
+
+    **Best for:** Research, experimentation
+
+    **Requirements:**
+    - 6GB+ VRAM
+
+    **Usage:**
+    ```python
+    m = model.load("CompVis/stable-diffusion-v1-4")
+    ```
+  </Card>
+</CardGroup>
+
+**Recommended Settings:**
+- dtype: `float16`
+- LoRA rank: 8-16
+- Training steps: 800-1500
+
+### Stable Diffusion 2.1
+
+Improved version of SD 1.5 with better quality.
+
+<Card title="SD 2.1" icon="image">
+  **Model ID:** `stabilityai/stable-diffusion-2-1`
+
+  **Best for:** Balance of quality and speed
+
+  **Requirements:**
+  - 8GB+ VRAM
+
+  **Usage:**
+  ```python
+  m = model.load("stabilityai/stable-diffusion-2-1")
+  ```
+</Card>
+
+## Video Generation Models
+
+### CogVideoX
+
+Tsinghua University's text-to-video generation model.
+
+<CardGroup cols={2}>
+  <Card title="CogVideoX-2B" icon="video">
+    **Model ID:** `THUDM/CogVideoX-2b`
+
+    **Best for:** Short video clips (2-6s)
+
+    **Requirements:**
+    - 16GB+ VRAM
+    - Smaller, faster variant
+
+    **Usage:**
+    ```python
+    m = model.load("THUDM/CogVideoX-2b")
+    ```
+  </Card>
+
+  <Card title="CogVideoX-5B" icon="film">
+    **Model ID:** `THUDM/CogVideoX-5b`
+
+    **Best for:** Higher quality videos
+
+    **Requirements:**
+    - 24GB+ VRAM
+    - Better quality than 2B
+
+    **Usage:**
+    ```python
+    m = model.load("THUDM/CogVideoX-5b")
+    ```
+  </Card>
+</CardGroup>
+
+<Note>
+  Video model support requires the `video` optional dependencies: `pip install hypergen[video]`
+</Note>
+
+## Specialized Models
+
+### ControlNet Models
+
+ControlNet-enabled models for conditional generation.
+
+<Warning>
+  ControlNet support is coming in a future release.
+</Warning>
+
+### PixArt Models
+
+High-resolution text-to-image models.
+
+```python
+m = model.load("PixArt-alpha/PixArt-XL-2-1024-MS")
+```
+
+### Kandinsky Models
+
+Bilingual (English/Russian) text-to-image models.
+
+```python
+m = model.load("kandinsky-community/kandinsky-2-2-decoder")
+```
+
+## Fine-Tuned Community Models
+
+HyperGen works with community fine-tunes on HuggingFace:
+
+```python
+# Anime style
+m = model.load("stablediffusionapi/anything-v5")
+
+# Realistic photos
+m = model.load("SG161222/Realistic_Vision_V5.1_noVAE")
+
+# Artistic style
+m = model.load("dreamlike-art/dreamlike-photoreal-2.0")
+```
+
+<Tip>
+  Browse [HuggingFace's diffusion models](https://huggingface.co/models?pipeline_tag=text-to-image) for thousands of community models.
+</Tip>
+
+## Model Comparison
+
+### Performance Comparison
+
+Based on RTX 4090, 50 inference steps, 1024x1024:
+
+| Model | VRAM | Generation Time | Quality | Best For |
+|-------|------|----------------|---------|----------|
+| SD 1.5 | ~6GB | ~2s | Good | Speed, low VRAM |
+| SD 2.1 | ~8GB | ~2.5s | Better | Balanced |
+| SDXL | ~12GB | ~4s | Excellent | General use |
+| SD3 | ~14GB | ~5s | Excellent+ | Text rendering |
+| FLUX.1 Dev | ~18GB | ~8s | Outstanding | Best quality |
+| FLUX.1 Schnell | ~16GB | ~3s | Excellent | Fast + quality |
+
+### Training Comparison
+
+Approximate LoRA training times (1000 steps, 50 images, rank 16):
+
+| Model | VRAM | Training Time | File Size |
+|-------|------|---------------|-----------|
+| SD 1.5 | ~6GB | ~8 min | ~30MB |
+| SDXL | ~12GB | ~15 min | ~50MB |
+| SD3 | ~14GB | ~18 min | ~60MB |
+| FLUX.1 | ~18GB | ~25 min | ~80MB |
+
+## Model Selection Guide
+
+### Choose Based on Use Case
+
+<Tabs>
+  <Tab title="Speed Priority">
+    **Best Choice:** SDXL Turbo or SD 1.5
+
+    ```python
+    m = model.load("stabilityai/sdxl-turbo")
+    # Or
+    m = model.load("runwayml/stable-diffusion-v1-5")
+    ```
+
+    - Fastest generation
+    - Good for prototyping
+    - Lower VRAM requirements
+  </Tab>
+
+  <Tab title="Quality Priority">
+    **Best Choice:** FLUX.1 Dev or SD3
+
+    ```python
+    m = model.load("black-forest-labs/FLUX.1-dev", torch_dtype="bfloat16")
+    # Or
+    m = model.load("stabilityai/stable-diffusion-3-medium-diffusers")
+    ```
+
+    - Best image quality
+    - Excellent prompt following
+    - Requires more VRAM
+  </Tab>
+
+  <Tab title="Balanced">
+    **Best Choice:** SDXL Base
+
+    ```python
+    m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+    ```
+
+    - Great quality
+    - Reasonable speed
+    - Works on 8GB+ VRAM
+  </Tab>
+
+  <Tab title="Low VRAM">
+    **Best Choice:** SD 1.5
+
+    ```python
+    m = model.load("runwayml/stable-diffusion-v1-5")
+    ```
+
+    - Works on 6GB VRAM
+    - Fast generation
+    - Proven reliability
+  </Tab>
+</Tabs>
+
+### Choose Based on VRAM
+
+<Steps>
+  <Step title="6-8GB VRAM">
+    - SD 1.5 
+    - SD 2.1 
+    - SDXL (with optimizations)  
+  </Step>
+
+  <Step title="8-12GB VRAM">
+    - SDXL 
+    - SD3 (with optimizations)  
+    - All SD variants 
+  </Step>
+
+  <Step title="12-16GB VRAM">
+    - SDXL 
+    - SD3 
+    - FLUX.1 Schnell  
+  </Step>
+
+  <Step title="16GB+ VRAM">
+    - All models 
+    - FLUX.1 Dev 
+    - CogVideoX-2B 
+  </Step>
+
+  <Step title="24GB+ VRAM">
+    - All models 
+    - Large batch sizes 
+    - CogVideoX-5B 
+  </Step>
+</Steps>
+
+## Loading Custom Models
+
+### From Local Path
+
+```python
+m = model.load("/path/to/local/model")
+```
+
+### From Private HuggingFace Repos
+
+```python
+from huggingface_hub import login
+
+login(token="your_hf_token")
+
+m = model.load("your-org/private-model")
+```
+
+### With Custom Configuration
+
+```python
+m = model.load(
+    "stabilityai/stable-diffusion-xl-base-1.0",
+    torch_dtype="bfloat16",
+    variant="fp16",  # Load fp16 variant
+    use_safetensors=True,
+)
+```
+
+## Model Licensing
+
+<Warning>
+  Always check the license for any model you use!
+</Warning>
+
+Common licenses:
+
+- **CreativeML OpenRAIL-M** - Most Stable Diffusion models (permissive, with restrictions)
+- **Apache 2.0** - FLUX.1 Schnell (permissive)
+- **FLUX.1 Dev License** - FLUX.1 Dev (non-commercial unless licensed)
+- **Custom Licenses** - Check each model's HuggingFace page
+
+## Testing New Models
+
+To test if a model works with HyperGen:
+
+```python
+from hypergen import model
+
+try:
+    m = model.load("model/id")
+    m.to("cuda")
+    image = m.generate("test prompt")
+    print("Model works! ")
+except Exception as e:
+    print(f"Model failed: {e}")
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Training" icon="graduation-cap" href="/training/lora">
+    Train LoRAs on any of these models
+  </Card>
+
+  <Card title="Serving" icon="server" href="/serving/quickstart">
+    Serve models with the API
+  </Card>
+
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Get started in 5 minutes
+  </Card>
+
+  <Card title="Installation" icon="download" href="/installation">
+    Install HyperGen with GPU support
+  </Card>
+</CardGroup>

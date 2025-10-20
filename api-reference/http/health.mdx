@@ -1,0 +1,441 @@
+---
+title: 'GET /health'
+api: 'GET http://localhost:8000/health'
+description: 'Health check and server status'
+---
+
+## Overview
+
+Check the health and status of the HyperGen server. This endpoint provides information about server status, loaded model, queue size, and device.
+
+<Info>
+  This endpoint does **not** require authentication, making it ideal for monitoring and health checks.
+</Info>
+
+---
+
+## Authentication
+
+<ParamField header="Authorization" type="string">
+  **Not required** - This endpoint is publicly accessible
+</ParamField>
+
+---
+
+## Request
+
+No request body or parameters required.
+
+---
+
+## Response
+
+<ResponseField name="status" type="string">
+  Server health status
+
+  **Values**:
+  - `"healthy"` - Server is running and ready to process requests
+  - `"unhealthy"` - Server is experiencing issues (not currently implemented)
+</ResponseField>
+
+<ResponseField name="model" type="string">
+  The model identifier that was loaded at server startup
+
+  **Example**: `"stabilityai/stable-diffusion-xl-base-1.0"`
+</ResponseField>
+
+<ResponseField name="queue_size" type="integer">
+  Current number of pending requests in the queue
+
+  **Range**: 0 to `max_queue_size` (default: 100)
+  - `0` - No pending requests, server is idle
+  - `>0` - Requests are waiting to be processed
+</ResponseField>
+
+<ResponseField name="device" type="string">
+  Device the model is running on
+
+  **Values**:
+  - `"cuda"` - NVIDIA GPU
+  - `"cuda:0"`, `"cuda:1"`, etc. - Specific GPU device
+  - `"cpu"` - CPU
+  - `"mps"` - Apple Silicon GPU
+</ResponseField>
+
+---
+
+## Examples
+
+### Basic Health Check
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:8000/health
+```
+
+```python Python
+import requests
+
+response = requests.get("http://localhost:8000/health")
+health = response.json()
+
+print(f"Status: {health['status']}")
+print(f"Model: {health['model']}")
+print(f"Queue: {health['queue_size']}")
+print(f"Device: {health['device']}")
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8000/health');
+const health = await response.json();
+
+console.log(`Status: ${health.status}`);
+console.log(`Model: ${health.model}`);
+console.log(`Queue: ${health.queue_size}`);
+console.log(`Device: ${health.device}`);
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "status": "healthy",
+  "model": "stabilityai/stable-diffusion-xl-base-1.0",
+  "queue_size": 0,
+  "device": "cuda"
+}
+```
+
+---
+
+### Server Under Load
+
+When the server has pending requests:
+
+```bash
+curl http://localhost:8000/health
+```
+
+```json
+{
+  "status": "healthy",
+  "model": "stabilityai/sdxl-turbo",
+  "queue_size": 5,
+  "device": "cuda:0"
+}
+```
+
+---
+
+## Use Cases
+
+### Monitoring Script
+
+Monitor server health and queue status:
+
+```python
+import requests
+import time
+
+def check_health():
+    try:
+        response = requests.get("http://localhost:8000/health", timeout=5)
+        health = response.json()
+
+        if health["status"] == "healthy":
+            print(f" Server healthy - Queue: {health['queue_size']}")
+            return True
+        else:
+            print(f" Server unhealthy")
+            return False
+    except Exception as e:
+        print(f" Server unreachable: {e}")
+        return False
+
+# Monitor every 30 seconds
+while True:
+    check_health()
+    time.sleep(30)
+```
+
+---
+
+### Load Balancer Health Check
+
+Use for load balancer health checks (e.g., AWS ALB, nginx):
+
+```nginx
+# nginx configuration
+upstream hypergen_servers {
+    server 10.0.1.10:8000;
+    server 10.0.1.11:8000;
+    server 10.0.1.12:8000;
+}
+
+server {
+    location / {
+        proxy_pass http://hypergen_servers;
+
+        # Health check
+        health_check uri=/health interval=10s;
+    }
+}
+```
+
+---
+
+### Kubernetes Liveness Probe
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hypergen-server
+spec:
+  containers:
+  - name: hypergen
+    image: hypergen:latest
+    ports:
+    - containerPort: 8000
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      initialDelaySeconds: 30
+      periodSeconds: 10
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 8000
+      initialDelaySeconds: 30
+      periodSeconds: 5
+```
+
+---
+
+### Wait for Server Ready
+
+Wait for server to be ready before sending requests:
+
+```python
+import requests
+import time
+
+def wait_for_server(url="http://localhost:8000", timeout=60):
+    """Wait for server to be healthy."""
+    start = time.time()
+
+    while time.time() - start < timeout:
+        try:
+            response = requests.get(f"{url}/health", timeout=5)
+            if response.json()["status"] == "healthy":
+                print("Server is ready!")
+                return True
+        except:
+            pass
+
+        print("Waiting for server...")
+        time.sleep(2)
+
+    raise TimeoutError("Server did not become healthy in time")
+
+# Wait for server, then make requests
+wait_for_server()
+
+response = requests.post(
+    "http://localhost:8000/v1/images/generations",
+    json={"prompt": "A cat"}
+)
+```
+
+---
+
+### Queue Monitoring
+
+Monitor queue size and alert when backlog grows:
+
+```python
+import requests
+import time
+
+def monitor_queue(threshold=10):
+    """Alert when queue size exceeds threshold."""
+    while True:
+        try:
+            response = requests.get("http://localhost:8000/health")
+            health = response.json()
+            queue_size = health["queue_size"]
+
+            if queue_size >= threshold:
+                print(f"   WARNING: Queue size is {queue_size} (threshold: {threshold})")
+                # Send alert (email, Slack, PagerDuty, etc.)
+            else:
+                print(f"Queue size: {queue_size}")
+
+        except Exception as e:
+            print(f"Error checking health: {e}")
+
+        time.sleep(10)
+
+monitor_queue(threshold=10)
+```
+
+---
+
+### Automatic Scaling Decision
+
+Use queue size to make scaling decisions:
+
+```python
+import requests
+
+def should_scale_up(queue_threshold=20):
+    """Determine if we should add more server instances."""
+    try:
+        response = requests.get("http://localhost:8000/health")
+        health = response.json()
+
+        if health["queue_size"] > queue_threshold:
+            print(f"Queue size {health['queue_size']} exceeds threshold {queue_threshold}")
+            print("Recommendation: Scale up")
+            return True
+        else:
+            print(f"Queue size {health['queue_size']} is within limits")
+            return False
+
+    except Exception as e:
+        print(f"Error: {e}")
+        return False
+
+# Check if scaling is needed
+if should_scale_up():
+    # Trigger auto-scaling (AWS Auto Scaling, Kubernetes HPA, etc.)
+    pass
+```
+
+---
+
+## Metrics Collection
+
+### Prometheus Exporter Example
+
+Export metrics for Prometheus monitoring:
+
+```python
+from prometheus_client import start_http_server, Gauge
+import requests
+import time
+
+# Define metrics
+queue_size_gauge = Gauge('hypergen_queue_size', 'Current queue size')
+server_status = Gauge('hypergen_server_healthy', 'Server health status (1=healthy, 0=unhealthy)')
+
+def collect_metrics():
+    while True:
+        try:
+            response = requests.get("http://localhost:8000/health", timeout=5)
+            health = response.json()
+
+            # Update metrics
+            queue_size_gauge.set(health["queue_size"])
+            server_status.set(1 if health["status"] == "healthy" else 0)
+
+        except Exception as e:
+            print(f"Error collecting metrics: {e}")
+            server_status.set(0)
+
+        time.sleep(5)
+
+# Start Prometheus metrics server
+start_http_server(9090)
+collect_metrics()
+```
+
+---
+
+## Response Status Codes
+
+<ResponseField name="200 OK" type="success">
+  Server is reachable and health check succeeded
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error" type="error">
+  Server error (rare, as endpoint is very simple)
+</ResponseField>
+
+<Info>
+  The `/health` endpoint should always return `200 OK` if the server is running, even if the queue is full or the server is under heavy load.
+</Info>
+
+---
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Monitoring">
+    - Poll the `/health` endpoint every 10-30 seconds
+    - Monitor `queue_size` to detect backlog
+    - Alert when `status` is not `"healthy"`
+    - Track `queue_size` trends over time
+  </Accordion>
+
+  <Accordion title="Load Balancing">
+    - Use `/health` for load balancer health checks
+    - Set appropriate timeout (5-10 seconds)
+    - Configure retry logic
+    - Don't route traffic to instances with high `queue_size`
+  </Accordion>
+
+  <Accordion title="Auto-Scaling">
+    - Scale up when `queue_size` consistently exceeds threshold
+    - Scale down when `queue_size` is consistently 0
+    - Use average queue size over time window (e.g., 5 minutes)
+    - Avoid flapping by using hysteresis
+  </Accordion>
+
+  <Accordion title="Deployment">
+    - Wait for `/health` to return `"healthy"` before routing traffic
+    - Use in readiness probes for orchestration platforms
+    - Check `/health` before running integration tests
+    - Include in pre-deployment smoke tests
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Troubleshooting
+
+### Server Not Responding
+
+If `/health` endpoint is not responding:
+
+1. Check if server is running: `ps aux | grep hypergen`
+2. Check server logs for errors
+3. Verify port is not blocked by firewall
+4. Ensure server started successfully (check for CUDA errors)
+
+### High Queue Size
+
+If `queue_size` is consistently high:
+
+1. Generation is too slow (consider using SDXL Turbo)
+2. Too many concurrent requests
+3. Image sizes are too large
+4. Need to scale horizontally (add more servers)
+
+---
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Generate Images" icon="image" href="/api-reference/http/generate">
+    Generate images (the endpoint that fills the queue)
+  </Card>
+
+  <Card title="List Models" icon="list" href="/api-reference/http/models">
+    Get information about the loaded model
+  </Card>
+</CardGroup>

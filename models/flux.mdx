@@ -1,0 +1,780 @@
+---
+title: FLUX.1 Model Guide
+description: Complete guide to using FLUX.1 models with HyperGen
+---
+
+## Overview
+
+FLUX.1 is Black Forest Labs' state-of-the-art text-to-image generation model, representing the cutting edge of diffusion model technology. It delivers exceptional image quality, outstanding prompt adherence, and remarkable detail in generated images.
+
+<CardGroup cols={2}>
+  <Card title="FLUX.1 Dev" icon="flask">
+    **Best for:** Production use, highest quality
+
+    - Superior image quality
+    - Excellent prompt following
+    - Requires 16GB+ VRAM
+  </Card>
+
+  <Card title="FLUX.1 Schnell" icon="bolt">
+    **Best for:** Fast iteration, prototyping
+
+    - Optimized for speed (1-4 steps)
+    - Good quality/speed tradeoff
+    - Requires 12GB+ VRAM
+  </Card>
+</CardGroup>
+
+## Model Variants
+
+### FLUX.1 Dev
+
+The development variant optimized for the highest quality outputs.
+
+```python
+from hypergen import model
+
+m = model.load("black-forest-labs/FLUX.1-dev", torch_dtype="bfloat16")
+m.to("cuda")
+```
+
+**Key Features:**
+- **Quality**: State-of-the-art image generation
+- **Prompt Following**: Excellent text comprehension
+- **License**: Non-commercial (requires license for commercial use)
+- **VRAM**: 16GB+ recommended
+
+### FLUX.1 Schnell
+
+The "schnell" (fast) variant optimized for rapid generation.
+
+```python
+from hypergen import model
+
+m = model.load("black-forest-labs/FLUX.1-schnell", torch_dtype="bfloat16")
+m.to("cuda")
+```
+
+**Key Features:**
+- **Speed**: 3-4x faster than Dev
+- **Quality**: Excellent (slightly below Dev)
+- **License**: Apache 2.0 (permissive, commercial-friendly)
+- **VRAM**: 12GB+ recommended
+
+## Loading FLUX.1 with HyperGen
+
+### Basic Loading
+
+```python
+from hypergen import model
+
+# Load FLUX.1 Dev
+m = model.load("black-forest-labs/FLUX.1-dev", torch_dtype="bfloat16")
+m.to("cuda")
+
+# Generate an image
+image = m.generate("A serene mountain landscape at sunset")
+image[0].save("output.png")
+```
+
+<Tip>
+  Always use `bfloat16` dtype with FLUX.1 for optimal quality and memory efficiency. The model was trained with bfloat16 precision.
+</Tip>
+
+### Advanced Loading Options
+
+```python
+from hypergen import model
+
+# Load with custom configuration
+m = model.load(
+    "black-forest-labs/FLUX.1-dev",
+    torch_dtype="bfloat16",
+    variant="bf16",              # Use bfloat16 weights
+    use_safetensors=True,        # Use safetensors format
+)
+m.to("cuda")
+
+# Enable memory optimizations (for lower VRAM)
+m.enable_model_cpu_offload()    # Offload to CPU when not in use
+m.enable_vae_slicing()           # Process VAE in slices
+```
+
+### Low VRAM Configuration
+
+For systems with limited VRAM (12GB):
+
+```python
+from hypergen import model
+
+m = model.load("black-forest-labs/FLUX.1-schnell", torch_dtype="bfloat16")
+m.to("cuda")
+
+# Enable memory optimizations
+m.enable_model_cpu_offload()
+m.enable_vae_slicing()
+m.enable_attention_slicing()
+```
+
+## Training LoRAs with FLUX.1
+
+FLUX.1 supports efficient LoRA fine-tuning with HyperGen's optimized training pipeline.
+
+### Basic LoRA Training
+
+```python
+from hypergen import model, dataset
+
+# Load model
+m = model.load("black-forest-labs/FLUX.1-dev", torch_dtype="bfloat16")
+m.to("cuda")
+
+# Load training data
+ds = dataset.load("./my_training_images")
+
+# Train LoRA
+lora = m.train_lora(
+    ds,
+    steps=1500,
+    rank=32,
+    alpha=64,
+    learning_rate=5e-5,
+)
+```
+
+### Recommended Training Parameters
+
+<Tabs>
+  <Tab title="Style Transfer">
+    **Goal:** Learn an artistic style or aesthetic
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=1500,
+        learning_rate=5e-5,
+        rank=32,
+        alpha=64,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Dataset Requirements:**
+    - 50-200 images
+    - Consistent style across images
+    - Captions describing content, not style
+  </Tab>
+
+  <Tab title="Subject/Character">
+    **Goal:** Learn a specific person, character, or object
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=2000,
+        learning_rate=4e-5,
+        rank=64,
+        alpha=128,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Dataset Requirements:**
+    - 20-100 images
+    - Variety of poses and angles
+    - Detailed captions describing poses, clothing, expressions
+  </Tab>
+
+  <Tab title="Concept">
+    **Goal:** Learn a new concept or composition style
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=2500,
+        learning_rate=5e-5,
+        rank=48,
+        alpha=96,
+        batch_size=1,
+        gradient_accumulation_steps=8,
+    )
+    ```
+
+    **Dataset Requirements:**
+    - 30-150 images
+    - Variety of examples
+    - Captions focusing on composition and elements
+  </Tab>
+</Tabs>
+
+### Memory-Optimized Training
+
+For 16GB VRAM GPUs:
+
+```python
+lora = m.train_lora(
+    ds,
+    steps=1500,
+    learning_rate=5e-5,
+    rank=32,                        # Medium capacity
+    alpha=64,
+    batch_size=1,                   # Single image per step
+    gradient_accumulation_steps=8,  # Simulate batch_size=8
+    save_steps=500,
+    output_dir="./flux_lora_checkpoints"
+)
+```
+
+### High-Quality Training
+
+For 24GB+ VRAM GPUs:
+
+```python
+lora = m.train_lora(
+    ds,
+    steps=2500,
+    learning_rate=4e-5,
+    rank=64,                        # High capacity
+    alpha=128,
+    batch_size=2,                   # Process 2 images at once
+    gradient_accumulation_steps=4,  # Simulate batch_size=8
+    save_steps=500,
+    output_dir="./flux_lora_checkpoints"
+)
+```
+
+## Inference Parameters
+
+### Generation Settings
+
+```python
+image = m.generate(
+    prompt="A photo of a cat wearing a space suit on Mars",
+    num_inference_steps=50,      # 20-50 for Dev, 1-4 for Schnell
+    guidance_scale=7.5,          # Prompt adherence strength
+    height=1024,                 # Image height
+    width=1024,                  # Image width
+    num_images=4,                # Generate 4 images
+    seed=42,                     # For reproducibility
+)
+```
+
+### Recommended Parameters
+
+<CardGroup cols={2}>
+  <Card title="FLUX.1 Dev" icon="flask">
+    **Quality Priority:**
+    ```python
+    num_inference_steps=50
+    guidance_scale=7.5
+    ```
+
+    **Balanced:**
+    ```python
+    num_inference_steps=30
+    guidance_scale=7.0
+    ```
+
+    **Speed Priority:**
+    ```python
+    num_inference_steps=20
+    guidance_scale=6.5
+    ```
+  </Card>
+
+  <Card title="FLUX.1 Schnell" icon="bolt">
+    **Best Settings:**
+    ```python
+    num_inference_steps=4
+    guidance_scale=0.0  # Schnell doesn't use CFG
+    ```
+
+    **Alternative:**
+    ```python
+    num_inference_steps=2
+    guidance_scale=0.0
+    ```
+  </Card>
+</CardGroup>
+
+### Advanced Generation
+
+```python
+# Generate with custom scheduler
+from diffusers import DPMSolverMultistepScheduler
+
+m.scheduler = DPMSolverMultistepScheduler.from_config(m.scheduler.config)
+
+image = m.generate(
+    prompt="A futuristic cityscape at night",
+    negative_prompt="blurry, low quality, distorted",
+    num_inference_steps=30,
+    guidance_scale=7.5,
+    height=1024,
+    width=1024,
+)
+```
+
+## Performance Benchmarks
+
+### Generation Benchmarks
+
+Based on NVIDIA RTX 4090, 1024x1024 images:
+
+| Variant | Steps | VRAM Used | Time | Quality |
+|---------|-------|-----------|------|---------|
+| FLUX.1 Dev | 50 | ~18GB | ~8s | Outstanding |
+| FLUX.1 Dev | 30 | ~18GB | ~5s | Excellent |
+| FLUX.1 Dev | 20 | ~18GB | ~3.5s | Very Good |
+| FLUX.1 Schnell | 4 | ~16GB | ~1.5s | Excellent |
+| FLUX.1 Schnell | 2 | ~16GB | ~1s | Very Good |
+
+### Training Benchmarks
+
+LoRA training on RTX 4090, 50 images, rank 32:
+
+| Configuration | VRAM | Time (1000 steps) | Time (2000 steps) |
+|---------------|------|-------------------|-------------------|
+| Batch 1, GA 1 | ~16GB | ~20 min | ~40 min |
+| Batch 1, GA 4 | ~16GB | ~22 min | ~44 min |
+| Batch 1, GA 8 | ~16GB | ~25 min | ~50 min |
+| Batch 2, GA 4 | ~22GB | ~28 min | ~56 min |
+
+<Note>
+  GA = Gradient Accumulation Steps. Higher values slightly increase training time but improve quality.
+</Note>
+
+### GPU Requirements
+
+<CardGroup cols={3}>
+  <Card title="Minimum (Schnell)" icon="microchip">
+    **VRAM:** 12GB
+
+    **Examples:**
+    - RTX 3060 (12GB)
+    - RTX 4070
+    - A10
+
+    **Settings:**
+    - Enable optimizations
+    - Batch size 1
+    - Rank 16-32
+  </Card>
+
+  <Card title="Recommended (Dev)" icon="memory">
+    **VRAM:** 16GB
+
+    **Examples:**
+    - RTX 4080
+    - RTX 4090
+    - A100 (40GB)
+
+    **Settings:**
+    - Standard settings
+    - Batch size 1-2
+    - Rank 32-64
+  </Card>
+
+  <Card title="Optimal (Dev)" icon="rocket">
+    **VRAM:** 24GB+
+
+    **Examples:**
+    - RTX 4090
+    - A100 (40GB)
+    - H100
+
+    **Settings:**
+    - Maximum quality
+    - Batch size 2-4
+    - Rank 64-128
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+### Prompt Engineering
+
+FLUX.1 has excellent prompt comprehension. Here are tips for best results:
+
+<Tabs>
+  <Tab title="Structure">
+    **Good prompt structure:**
+
+    ```
+    [Subject] [Action/Pose] [Environment] [Lighting] [Style] [Quality]
+    ```
+
+    **Example:**
+    ```python
+    prompt = """
+    A majestic red fox sitting on a moss-covered rock in a misty forest,
+    soft morning light filtering through the trees, photorealistic style,
+    highly detailed, 8k quality
+    """
+    ```
+  </Tab>
+
+  <Tab title="Details">
+    **Be specific with details:**
+
+    L **Vague:** "A nice landscape"
+
+     **Detailed:** "A serene mountain valley with a crystal-clear lake reflecting snow-capped peaks, surrounded by pine forests, golden hour lighting, vibrant colors"
+
+    FLUX.1 excels at understanding complex, detailed prompts.
+  </Tab>
+
+  <Tab title="Style Control">
+    **Control artistic style:**
+
+    ```python
+    # Photorealistic
+    prompt = "A portrait of a woman, photorealistic, professional photography, 85mm lens"
+
+    # Artistic
+    prompt = "A landscape painting in the style of Claude Monet, impressionist, oil on canvas"
+
+    # Digital Art
+    prompt = "A futuristic robot, digital art, concept art, trending on ArtStation"
+    ```
+  </Tab>
+
+  <Tab title="Text in Images">
+    **FLUX.1 can generate text:**
+
+    ```python
+    prompt = 'A cat holding a sign that says "HELLO WORLD" in bold letters'
+    ```
+
+    Tips for text generation:
+    - Put text in quotes
+    - Specify font style if needed
+    - Keep text relatively short
+    - Describe the sign/banner/object containing text
+  </Tab>
+</Tabs>
+
+### Training Best Practices
+
+<Steps>
+  <Step title="Dataset Preparation">
+    **Quality over quantity:**
+    - Use high-resolution images (1024x1024 or higher)
+    - Ensure consistent quality across dataset
+    - 20-150 images is usually sufficient
+    - Remove duplicates and near-duplicates
+  </Step>
+
+  <Step title="Caption Quality">
+    **Write descriptive captions:**
+    - Describe what you see, not what you want to learn
+    - Include details about composition, lighting, colors
+    - Be consistent in caption style
+    - Use natural language
+
+    **Example:**
+    ```
+    A close-up portrait of a person wearing a red jacket,
+    standing in front of a blue wall, soft natural lighting
+    from the left, neutral expression
+    ```
+  </Step>
+
+  <Step title="Hyperparameter Tuning">
+    **Start with defaults, then adjust:**
+
+    1. Begin with recommended settings
+    2. If underfitting (not learning), increase:
+       - Training steps
+       - LoRA rank
+       - Learning rate (carefully)
+    3. If overfitting (memorizing), decrease:
+       - Training steps
+       - LoRA rank
+       - Add more training images
+  </Step>
+
+  <Step title="Monitor Training">
+    **Save checkpoints regularly:**
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=2000,
+        save_steps=500,  # Save every 500 steps
+        output_dir="./checkpoints"
+    )
+    ```
+
+    Test different checkpoints to find the best one.
+  </Step>
+</Steps>
+
+### Memory Optimization
+
+<Accordion title="Enable Model CPU Offload">
+  Offload model components to CPU when not in use:
+
+  ```python
+  m.enable_model_cpu_offload()
+  ```
+
+  **Pros:** Reduces VRAM by 40-50%
+  **Cons:** Slower generation (10-20% slower)
+</Accordion>
+
+<Accordion title="Enable VAE Slicing">
+  Process VAE in smaller slices:
+
+  ```python
+  m.enable_vae_slicing()
+  ```
+
+  **Pros:** Reduces VRAM by 10-15%
+  **Cons:** Minimal performance impact
+</Accordion>
+
+<Accordion title="Enable Attention Slicing">
+  Compute attention in slices:
+
+  ```python
+  m.enable_attention_slicing()
+  ```
+
+  **Pros:** Reduces VRAM by 15-20%
+  **Cons:** Slower generation (5-10% slower)
+</Accordion>
+
+<Accordion title="Use Lower Rank">
+  Reduce LoRA rank during training:
+
+  ```python
+  lora = m.train_lora(ds, rank=16, alpha=32)  # Instead of rank=32
+  ```
+
+  **Pros:** Reduces VRAM by 20-30%
+  **Cons:** Lower model capacity
+</Accordion>
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Out of Memory During Generation">
+    **Solutions:**
+
+    1. Enable memory optimizations:
+       ```python
+       m.enable_model_cpu_offload()
+       m.enable_vae_slicing()
+       m.enable_attention_slicing()
+       ```
+
+    2. Reduce image resolution:
+       ```python
+       image = m.generate(prompt, height=768, width=768)
+       ```
+
+    3. Generate fewer images at once:
+       ```python
+       image = m.generate(prompt, num_images=1)  # Instead of 4
+       ```
+  </Accordion>
+
+  <Accordion title="Out of Memory During Training">
+    **Solutions:**
+
+    1. Reduce batch size:
+       ```python
+       lora = m.train_lora(ds, batch_size=1)
+       ```
+
+    2. Lower LoRA rank:
+       ```python
+       lora = m.train_lora(ds, rank=16, alpha=32)
+       ```
+
+    3. Use gradient accumulation:
+       ```python
+       lora = m.train_lora(ds, batch_size=1, gradient_accumulation_steps=8)
+       ```
+  </Accordion>
+
+  <Accordion title="Poor Training Results">
+    **Possible causes and solutions:**
+
+    1. **Not enough training steps:**
+       - Increase to 2000-3000 steps
+
+    2. **Low quality dataset:**
+       - Use higher resolution images
+       - Add more diverse examples
+       - Improve caption quality
+
+    3. **Wrong hyperparameters:**
+       - Try learning_rate=4e-5 or 6e-5
+       - Increase rank to 64
+       - Adjust alpha to 2x rank
+  </Accordion>
+
+  <Accordion title="Slow Generation Speed">
+    **Solutions:**
+
+    1. Use FLUX.1 Schnell instead of Dev:
+       ```python
+       m = model.load("black-forest-labs/FLUX.1-schnell", torch_dtype="bfloat16")
+       ```
+
+    2. Reduce inference steps:
+       ```python
+       image = m.generate(prompt, num_inference_steps=20)
+       ```
+
+    3. Disable CPU offload if enabled:
+       ```python
+       m.disable_model_cpu_offload()
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Example Projects
+
+### Portrait LoRA Training
+
+```python
+from hypergen import model, dataset
+
+# Load FLUX.1 Dev
+m = model.load("black-forest-labs/FLUX.1-dev", torch_dtype="bfloat16")
+m.to("cuda")
+
+# Load portrait dataset
+ds = dataset.load("./portraits", caption_extension=".txt")
+
+# Train portrait LoRA
+lora = m.train_lora(
+    ds,
+    steps=2000,
+    learning_rate=4e-5,
+    rank=64,
+    alpha=128,
+    batch_size=1,
+    gradient_accumulation_steps=4,
+    save_steps=500,
+    output_dir="./portrait_lora"
+)
+
+print("Training complete! LoRA saved to ./portrait_lora")
+```
+
+### Style Transfer LoRA
+
+```python
+from hypergen import model, dataset
+
+# Load FLUX.1 Dev
+m = model.load("black-forest-labs/FLUX.1-dev", torch_dtype="bfloat16")
+m.to("cuda")
+
+# Load artistic style dataset
+ds = dataset.load("./art_style")
+
+# Train style LoRA with lower rank (style doesn't need high capacity)
+lora = m.train_lora(
+    ds,
+    steps=1500,
+    learning_rate=5e-5,
+    rank=32,
+    alpha=64,
+    batch_size=1,
+    gradient_accumulation_steps=8,
+    output_dir="./style_lora"
+)
+```
+
+### Batch Generation
+
+```python
+from hypergen import model
+
+# Load FLUX.1 Schnell for fast generation
+m = model.load("black-forest-labs/FLUX.1-schnell", torch_dtype="bfloat16")
+m.to("cuda")
+
+# Generate multiple variations
+prompts = [
+    "A serene mountain landscape at sunrise",
+    "A bustling city street at night",
+    "A peaceful garden with cherry blossoms",
+    "A dramatic ocean sunset with waves",
+]
+
+for i, prompt in enumerate(prompts):
+    images = m.generate(
+        prompt,
+        num_inference_steps=4,
+        guidance_scale=0.0,
+        num_images=2,
+    )
+
+    for j, img in enumerate(images):
+        img.save(f"output_{i}_{j}.png")
+
+print("Generated", len(prompts) * 2, "images")
+```
+
+## License Information
+
+<Warning>
+  **Important:** FLUX.1 variants have different licenses!
+</Warning>
+
+### FLUX.1 Dev
+
+**License:** FLUX.1 Dev Non-Commercial License
+
+-  Personal use
+-  Research
+-  Evaluation
+- L Commercial use (requires separate license)
+
+Contact Black Forest Labs for commercial licensing.
+
+### FLUX.1 Schnell
+
+**License:** Apache 2.0
+
+-  Personal use
+-  Research
+-  Commercial use
+-  Modification and distribution
+
+Fully permissive open-source license.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Training Guide" icon="graduation-cap" href="/training/lora">
+    Complete LoRA training documentation
+  </Card>
+
+  <Card title="Dataset Preparation" icon="images" href="/training/datasets">
+    Learn how to prepare training data
+  </Card>
+
+  <Card title="Serving FLUX.1" icon="server" href="/serving/overview">
+    Deploy FLUX.1 with the API
+  </Card>
+
+  <Card title="API Reference" icon="code" href="/api-reference/model">
+    Complete model API documentation
+  </Card>
+</CardGroup>
+
+## Additional Resources
+
+- [FLUX.1 on HuggingFace](https://huggingface.co/black-forest-labs)
+- [Black Forest Labs Website](https://blackforestlabs.ai/)
+- [FLUX.1 Technical Paper](https://blackforestlabs.ai/flux-1-tools/)

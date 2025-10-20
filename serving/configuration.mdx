@@ -1,0 +1,424 @@
+---
+title: Server Configuration
+description: Complete guide to HyperGen server options
+---
+
+## Command Line Options
+
+### Basic Syntax
+
+```bash
+hypergen serve MODEL [OPTIONS]
+```
+
+## Required Arguments
+
+<ParamField path="model" type="string" required>
+  HuggingFace model ID or local path to model.
+
+  **Examples:**
+  ```bash
+  hypergen serve stabilityai/stable-diffusion-xl-base-1.0
+  hypergen serve black-forest-labs/FLUX.1-dev
+  hypergen serve /path/to/local/model
+  ```
+</ParamField>
+
+## Server Options
+
+<ParamField path="--host" type="string" default="0.0.0.0">
+  Host address to bind the server to.
+
+  - `0.0.0.0` - Listen on all interfaces (accessible externally)
+  - `127.0.0.1` - Localhost only (more secure for development)
+  - Specific IP - Bind to a specific network interface
+
+  **Examples:**
+  ```bash
+  hypergen serve model_id --host 127.0.0.1  # Localhost only
+  hypergen serve model_id --host 0.0.0.0    # External access
+  ```
+</ParamField>
+
+<ParamField path="--port" type="int" default={8000}>
+  Port to bind the server to.
+
+  **Examples:**
+  ```bash
+  hypergen serve model_id --port 8080
+  hypergen serve model_id --port 3000
+  ```
+
+  <Note>
+    Make sure the port is not already in use. Check with: `lsof -i :8000`
+  </Note>
+</ParamField>
+
+## Model Configuration
+
+<ParamField path="--dtype" type="string" default="float16">
+  Data type for model weights.
+
+  **Options:**
+  - `float16` / `fp16` - Half precision (recommended for most GPUs)
+  - `bfloat16` / `bf16` - Brain float 16 (better for FLUX, requires Ampere+ GPUs)
+  - `float32` / `fp32` - Full precision (highest quality, most VRAM)
+
+  **Examples:**
+  ```bash
+  hypergen serve model_id --dtype float16   # Standard
+  hypergen serve model_id --dtype bfloat16  # For FLUX.1
+  hypergen serve model_id --dtype float32   # High quality
+  ```
+
+  <Tip>
+    Use `bfloat16` for FLUX models and `float16` for SDXL/SD3.
+  </Tip>
+</ParamField>
+
+<ParamField path="--device" type="string" default="cuda">
+  Device to run the model on.
+
+  **Options:**
+  - `cuda` - NVIDIA GPU (recommended)
+  - `cpu` - CPU only (very slow)
+  - `mps` - Apple Silicon GPU (experimental)
+  - `cuda:0`, `cuda:1`, etc. - Specific GPU
+
+  **Examples:**
+  ```bash
+  hypergen serve model_id --device cuda     # Default GPU
+  hypergen serve model_id --device cuda:1   # Second GPU
+  hypergen serve model_id --device mps      # Apple Silicon
+  ```
+
+  <Warning>
+    CPU inference is extremely slow and not recommended for production.
+  </Warning>
+</ParamField>
+
+<ParamField path="--lora" type="string" default={null}>
+  Path to LoRA weights to load at startup.
+
+  **Examples:**
+  ```bash
+  hypergen serve model_id --lora ./my_lora
+  hypergen serve model_id --lora /path/to/lora/checkpoint-1000
+  ```
+
+  <Note>
+    The server will load the LoRA weights from the specified directory. The directory should contain `adapter_config.json` and `adapter_model.safetensors`.
+  </Note>
+</ParamField>
+
+## Authentication
+
+<ParamField path="--api-key" type="string" default={null}>
+  API key for authentication. If set, all requests must include this key.
+
+  **Examples:**
+  ```bash
+  # Simple key
+  hypergen serve model_id --api-key my-secret-key
+
+  # Generate secure key
+  hypergen serve model_id --api-key $(openssl rand -hex 32)
+  ```
+
+  **Client usage:**
+  ```python
+  from openai import OpenAI
+
+  client = OpenAI(
+      api_key="my-secret-key",
+      base_url="http://localhost:8000/v1"
+  )
+  ```
+
+  <Warning>
+    Always use API keys in production! Without authentication, anyone can access your server.
+  </Warning>
+</ParamField>
+
+## Queue Configuration
+
+<ParamField path="--max-queue-size" type="int" default={100}>
+  Maximum number of requests that can be queued.
+
+  When the queue is full, new requests return HTTP 503 (Service Unavailable).
+
+  **Examples:**
+  ```bash
+  hypergen serve model_id --max-queue-size 50   # Smaller queue
+  hypergen serve model_id --max-queue-size 200  # Larger queue
+  ```
+
+  <Tip>
+    Larger queues can handle traffic spikes but use more memory. Tune based on your expected load.
+  </Tip>
+</ParamField>
+
+<ParamField path="--max-batch-size" type="int" default={1}>
+  Maximum number of requests to process in a single batch.
+
+  <Note>
+    Batch processing is not fully implemented yet. This parameter is reserved for Phase 2.
+  </Note>
+
+  **Future usage:**
+  ```bash
+  hypergen serve model_id --max-batch-size 4  # Process up to 4 requests together
+  ```
+</ParamField>
+
+## Development Options
+
+<ParamField path="--reload" type="boolean" default={false}>
+  Enable auto-reload on code changes (development only).
+
+  **Example:**
+  ```bash
+  hypergen serve model_id --reload
+  ```
+
+  <Warning>
+    Only use `--reload` in development. It will restart the server on any code change, which is slow and not suitable for production.
+  </Warning>
+</ParamField>
+
+## Configuration Examples
+
+### Local Development
+
+```bash
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
+- No authentication
+- Localhost only
+- Default settings
+
+### Production Deployment
+
+```bash
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --api-key $(openssl rand -hex 32) \
+  --dtype float16 \
+  --max-queue-size 100
+```
+
+- External access
+- Secure API key
+- Optimized settings
+
+### High-Quality FLUX Server
+
+```bash
+hypergen serve black-forest-labs/FLUX.1-dev \
+  --dtype bfloat16 \
+  --port 8000 \
+  --api-key your-secret-key \
+  --max-queue-size 50
+```
+
+- BFloat16 for best quality
+- Authentication enabled
+- Moderate queue size
+
+### Multi-Model Setup
+
+Run multiple servers on different ports:
+
+```bash
+# Terminal 1: SDXL on port 8000
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 --port 8000
+
+# Terminal 2: FLUX on port 8001
+hypergen serve black-forest-labs/FLUX.1-dev --port 8001 --dtype bfloat16
+
+# Terminal 3: SD 1.5 on port 8002
+hypergen serve runwayml/stable-diffusion-v1-5 --port 8002
+```
+
+### With LoRA
+
+```bash
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 \
+  --lora ./trained_loras/my_style \
+  --api-key my-secret-key \
+  --port 8000
+```
+
+### Behind Reverse Proxy
+
+```bash
+# Run on localhost only, let nginx handle external access
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 \
+  --host 127.0.0.1 \
+  --port 8000 \
+  --api-key $(cat /path/to/api_key.txt)
+```
+
+Nginx configuration:
+
+```nginx
+server {
+    listen 80;
+    server_name api.example.com;
+
+    location /v1/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 300s;
+    }
+
+    location /health {
+        proxy_pass http://127.0.0.1:8000;
+    }
+}
+```
+
+## Environment Variables
+
+While HyperGen doesn't use environment variables for configuration, you can use them in your commands:
+
+```bash
+# Store API key in environment
+export HYPERGEN_API_KEY=$(openssl rand -hex 32)
+
+# Use in command
+hypergen serve model_id --api-key $HYPERGEN_API_KEY
+```
+
+## systemd Service
+
+For production deployments on Linux:
+
+```ini
+# /etc/systemd/system/hypergen.service
+[Unit]
+Description=HyperGen API Server
+After=network.target
+
+[Service]
+Type=simple
+User=hypergen
+WorkingDirectory=/opt/hypergen
+Environment="PATH=/opt/hypergen/venv/bin"
+ExecStart=/opt/hypergen/venv/bin/hypergen serve \
+    stabilityai/stable-diffusion-xl-base-1.0 \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --api-key-file /opt/hypergen/api_key.txt \
+    --dtype float16
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```bash
+sudo systemctl enable hypergen
+sudo systemctl start hypergen
+sudo systemctl status hypergen
+```
+
+## Docker Deployment
+
+Example Dockerfile:
+
+```dockerfile
+FROM nvidia/cuda:12.1.0-runtime-ubuntu22.04
+
+# Install Python and pip
+RUN apt-get update && apt-get install -y \
+    python3.10 \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install HyperGen
+RUN pip3 install hypergen
+
+# Set environment
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+# Run server
+CMD ["hypergen", "serve", "stabilityai/stable-diffusion-xl-base-1.0", \
+     "--host", "0.0.0.0", \
+     "--port", "8000"]
+```
+
+Build and run:
+
+```bash
+docker build -t hypergen-server .
+
+docker run -p 8000:8000 --gpus all \
+  hypergen-server \
+  hypergen serve stabilityai/stable-diffusion-xl-base-1.0 \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --api-key your-key
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Security" icon="lock">
+    - Always use API keys in production
+    - Run behind HTTPS (nginx/caddy)
+    - Use firewall rules
+    - Don't expose directly to internet
+  </Card>
+
+  <Card title="Performance" icon="bolt">
+    - Use float16 for most models
+    - Use bfloat16 for FLUX
+    - Tune queue size based on traffic
+    - Monitor GPU memory usage
+  </Card>
+
+  <Card title="Reliability" icon="shield">
+    - Use systemd for auto-restart
+    - Set up health check monitoring
+    - Log to files for debugging
+    - Set up alerts for errors
+  </Card>
+
+  <Card title="Scalability" icon="chart-line">
+    - Use reverse proxy for load balancing
+    - Run multiple servers for different models
+    - Cache frequently used models
+    - Monitor queue sizes
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/serving/quickstart">
+    Start your first server
+  </Card>
+
+  <Card title="Overview" icon="book" href="/serving/overview">
+    Understand the architecture
+  </Card>
+
+  <Card title="Supported Models" icon="list" href="/models/supported">
+    See compatible models
+  </Card>
+
+  <Card title="Examples" icon="code" href="https://github.com/ntegrals/hypergen/tree/main/examples">
+    Client code examples
+  </Card>
+</CardGroup>

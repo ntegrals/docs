@@ -1,0 +1,319 @@
+---
+title: 'Model'
+description: 'Load and manage diffusion models with automatic optimization'
+---
+
+## Overview
+
+The `model` module provides a high-level interface for loading and working with diffusion models from HuggingFace or local paths. It automatically handles model optimization, device management, and inference.
+
+## model.load()
+
+Load a diffusion model from HuggingFace or a local path.
+
+```python
+from hypergen import model
+
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+```
+
+### Parameters
+
+<ParamField path="model_id" type="string" required>
+  HuggingFace model ID (e.g., "stabilityai/stable-diffusion-xl-base-1.0") or local path to model directory
+</ParamField>
+
+<ParamField path="torch_dtype" type="string" default="float16">
+  Data type for model weights. Options:
+  - `"float16"` or `"fp16"` - Half precision (recommended for most GPUs)
+  - `"bfloat16"` or `"bf16"` - Brain float (better for newer hardware)
+  - `"float32"` or `"fp32"` - Full precision (slower but more accurate)
+</ParamField>
+
+<ParamField path="**kwargs" type="dict">
+  Additional arguments passed to `DiffusionPipeline.from_pretrained()`. Common options:
+  - `variant` - Model variant (e.g., "fp16")
+  - `use_auth_token` - HuggingFace authentication token
+  - `revision` - Model revision to use
+</ParamField>
+
+### Returns
+
+<ResponseField name="model" type="Model">
+  Model instance ready for inference and training
+</ResponseField>
+
+### Example
+
+```python
+from hypergen import model
+
+# Load with default settings (float16)
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+
+# Load with specific dtype
+m = model.load(
+    "stabilityai/sdxl-turbo",
+    torch_dtype="bfloat16"
+)
+
+# Load from local path
+m = model.load("/path/to/local/model")
+```
+
+---
+
+## Model.to()
+
+Move the model to a specific device (GPU, CPU, etc.).
+
+```python
+m.to("cuda")  # Move to GPU
+```
+
+### Parameters
+
+<ParamField path="device" type="string" required>
+  Device to move model to:
+  - `"cuda"` - NVIDIA GPU (default CUDA device)
+  - `"cuda:0"`, `"cuda:1"`, etc. - Specific CUDA device
+  - `"cpu"` - CPU
+  - `"mps"` - Apple Silicon GPU (Metal Performance Shaders)
+</ParamField>
+
+### Returns
+
+<ResponseField name="self" type="Model">
+  Returns self for method chaining
+</ResponseField>
+
+### Example
+
+```python
+from hypergen import model
+
+# Load and move to GPU in one chain
+m = model.load("stabilityai/sdxl-turbo").to("cuda")
+
+# Move to specific GPU
+m = model.load("stabilityai/sdxl-turbo").to("cuda:1")
+
+# Use Apple Silicon GPU
+m = model.load("stabilityai/sdxl-turbo").to("mps")
+```
+
+---
+
+## Model.generate()
+
+Generate images from text prompt(s).
+
+```python
+image = m.generate("A cat holding a sign")
+```
+
+### Parameters
+
+<ParamField path="prompt" type="string | list[string]" required>
+  Text prompt(s) describing the image to generate. Can be a single string or list of strings for batch generation.
+</ParamField>
+
+<ParamField path="negative_prompt" type="string | list[string]">
+  Negative prompt(s) describing what to avoid in the generation
+</ParamField>
+
+<ParamField path="num_inference_steps" type="integer" default="50">
+  Number of denoising steps. More steps = higher quality but slower. Typical range: 20-100.
+</ParamField>
+
+<ParamField path="guidance_scale" type="float" default="7.5">
+  Classifier-free guidance scale. Higher values = stronger adherence to prompt. Typical range: 5.0-15.0.
+</ParamField>
+
+<ParamField path="width" type="integer" default="1024">
+  Output image width in pixels. Must be divisible by 8.
+</ParamField>
+
+<ParamField path="height" type="integer" default="1024">
+  Output image height in pixels. Must be divisible by 8.
+</ParamField>
+
+<ParamField path="num_images_per_prompt" type="integer" default="1">
+  Number of images to generate per prompt
+</ParamField>
+
+<ParamField path="seed" type="integer">
+  Random seed for reproducible generation. If not specified, uses random seed.
+</ParamField>
+
+<ParamField path="**kwargs" type="dict">
+  Additional arguments passed to the underlying pipeline (model-specific)
+</ParamField>
+
+### Returns
+
+<ResponseField name="images" type="PIL.Image.Image | list[PIL.Image.Image]">
+  Generated image(s). Returns a single PIL Image if one image is generated, or a list of images for batch generation.
+</ResponseField>
+
+### Example
+
+```python
+from hypergen import model
+
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0").to("cuda")
+
+# Basic generation
+image = m.generate("A cat holding a sign")
+image.save("cat.png")
+
+# With advanced parameters
+image = m.generate(
+    prompt="A futuristic cityscape at sunset",
+    negative_prompt="blurry, low quality, distorted",
+    num_inference_steps=50,
+    guidance_scale=7.5,
+    width=1024,
+    height=1024,
+    seed=42  # Reproducible results
+)
+
+# Batch generation
+images = m.generate(
+    prompt=["A cat", "A dog", "A bird"],
+    num_images_per_prompt=2  # 6 total images
+)
+
+for i, img in enumerate(images):
+    img.save(f"output_{i}.png")
+```
+
+---
+
+## Model.train_lora()
+
+Train a LoRA (Low-Rank Adaptation) adapter on a custom dataset. This is the simple, high-level interface for LoRA training.
+
+```python
+lora = m.train_lora(dataset, steps=1000)
+```
+
+### Parameters
+
+<ParamField path="dataset" type="Dataset" required>
+  Dataset to train on, created with `dataset.load()`
+</ParamField>
+
+<ParamField path="steps" type="integer" default="1000">
+  Number of training steps to perform
+</ParamField>
+
+<ParamField path="learning_rate" type="float | string" default="1e-4">
+  Learning rate for training. Use a float value or `"auto"` for automatic learning rate selection.
+
+  Typical values:
+  - `1e-4` - Good starting point for most cases
+  - `1e-5` - More conservative, slower convergence
+  - `1e-3` - Aggressive, may cause instability
+</ParamField>
+
+<ParamField path="rank" type="integer" default="16">
+  LoRA rank. Lower rank = fewer parameters and faster training, but less expressive.
+
+  Common values:
+  - `8` - Very lightweight, fast training
+  - `16` - Good balance (default)
+  - `32` - More expressive, slower training
+  - `64` - High capacity, slow training
+</ParamField>
+
+<ParamField path="alpha" type="integer" default="32">
+  LoRA alpha scaling factor. Typically set to 2x the rank. Controls the magnitude of LoRA updates.
+</ParamField>
+
+<ParamField path="batch_size" type="integer | string" default="1">
+  Batch size for training. Use `"auto"` for automatic batch size selection based on available memory.
+</ParamField>
+
+<ParamField path="gradient_accumulation_steps" type="integer" default="1">
+  Number of steps to accumulate gradients before updating weights. Effective batch size = batch_size × gradient_accumulation_steps.
+</ParamField>
+
+<ParamField path="output_dir" type="string">
+  Directory to save checkpoints. If not specified, checkpoints are not saved to disk.
+</ParamField>
+
+<ParamField path="save_steps" type="integer">
+  Save a checkpoint every N steps. Only applies if `output_dir` is specified.
+</ParamField>
+
+<ParamField path="**kwargs" type="dict">
+  Additional training arguments passed to the trainer
+</ParamField>
+
+### Returns
+
+<ResponseField name="lora_weights" type="dict">
+  Dictionary containing trained LoRA weights that can be loaded later
+</ResponseField>
+
+### Example
+
+```python
+from hypergen import model, dataset
+
+# Load model and dataset
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0").to("cuda")
+ds = dataset.load("./my_training_images")
+
+# Basic LoRA training
+lora = m.train_lora(ds, steps=1000)
+
+# Advanced configuration
+lora = m.train_lora(
+    ds,
+    steps=2000,
+    learning_rate=1e-4,
+    rank=32,
+    alpha=64,
+    batch_size=4,
+    gradient_accumulation_steps=4,  # Effective batch size = 16
+    output_dir="./lora_checkpoints",
+    save_steps=250  # Save every 250 steps
+)
+
+# The model now has LoRA weights applied
+# Generate with fine-tuned model
+image = m.generate("A portrait in my custom style")
+```
+
+### Notes
+
+<Info>
+  LoRA training is memory-efficient and fast compared to full fine-tuning. It only trains a small number of additional parameters while keeping the base model frozen.
+</Info>
+
+<Warning>
+  Training requires significant GPU memory. If you run out of memory, try:
+  - Reducing `batch_size`
+  - Reducing `rank`
+  - Using `gradient_accumulation_steps` to simulate larger batches
+</Warning>
+
+---
+
+## Type Reference
+
+### Model
+
+The main model class returned by `model.load()`.
+
+```python
+class Model:
+    pipeline: DiffusionPipeline  # Underlying diffusers pipeline
+
+    def load(model_id: str, **kwargs) -> Model: ...
+    def to(device: str) -> Model: ...
+    def generate(prompt: str | list[str], **kwargs) -> Any: ...
+    def train_lora(dataset: Dataset, **kwargs) -> dict: ...
+```

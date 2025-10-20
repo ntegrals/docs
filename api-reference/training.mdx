@@ -1,0 +1,448 @@
+---
+title: 'Training'
+description: 'LoRA training for diffusion models'
+---
+
+## Overview
+
+The `training` module provides tools for fine-tuning diffusion models using LoRA (Low-Rank Adaptation). LoRA is a parameter-efficient fine-tuning technique that trains only a small number of additional weights while keeping the base model frozen.
+
+<Info>
+  **What is LoRA?**
+
+  LoRA (Low-Rank Adaptation) adds trainable low-rank matrices to model layers, allowing you to customize a model with minimal computational resources. It's perfect for:
+  - Learning specific styles or subjects
+  - Adapting models to custom datasets
+  - Training on consumer GPUs
+</Info>
+
+---
+
+## LoRATrainer
+
+The main class for configuring and running LoRA training.
+
+```python
+from hypergen import model, dataset
+from hypergen.training import LoRATrainer
+
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0").to("cuda")
+trainer = LoRATrainer(m)
+lora_weights = trainer.train(dataset, steps=1000)
+```
+
+### Constructor
+
+```python
+LoRATrainer(
+    model,
+    rank=16,
+    alpha=32,
+    target_modules=None,
+    dropout=0.1
+)
+```
+
+#### Parameters
+
+<ParamField path="model" type="Model" required>
+  Model instance to train (from `model.load()`)
+</ParamField>
+
+<ParamField path="rank" type="integer" default="16">
+  LoRA rank - the dimensionality of the low-rank matrices. Lower rank means:
+  - Fewer trainable parameters
+  - Faster training
+  - Less expressive (may not capture complex patterns)
+
+  Common values:
+  - `8` - Very lightweight (0.5-1M parameters)
+  - `16` - Good balance (1-2M parameters)
+  - `32` - More expressive (2-4M parameters)
+  - `64` - High capacity (4-8M parameters)
+</ParamField>
+
+<ParamField path="alpha" type="integer" default="32">
+  LoRA alpha - scaling factor for the LoRA updates. Generally set to 2× rank.
+
+  Higher alpha = stronger LoRA influence. Formula: `scaling = alpha / rank`
+</ParamField>
+
+<ParamField path="target_modules" type="list[string]">
+  Which model modules to apply LoRA to. If `None`, automatically targets attention layers.
+
+  Default: `["to_q", "to_k", "to_v", "to_out.0"]` (UNet attention layers)
+
+  Advanced users can specify custom modules based on model architecture.
+</ParamField>
+
+<ParamField path="dropout" type="float" default="0.1">
+  Dropout probability for LoRA layers. Helps prevent overfitting.
+
+  Typical range: 0.0 - 0.2
+</ParamField>
+
+#### Example
+
+```python
+from hypergen import model
+from hypergen.training import LoRATrainer
+
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0").to("cuda")
+
+# Lightweight LoRA
+trainer = LoRATrainer(m, rank=8, alpha=16)
+
+# High-capacity LoRA
+trainer = LoRATrainer(m, rank=64, alpha=128, dropout=0.05)
+
+# Custom target modules
+trainer = LoRATrainer(
+    m,
+    rank=32,
+    target_modules=["to_q", "to_k", "to_v", "to_out.0", "ff.net.0"]
+)
+```
+
+---
+
+## LoRATrainer.train()
+
+Train the LoRA adapter on a dataset.
+
+```python
+lora_weights = trainer.train(dataset, steps=1000)
+```
+
+### Parameters
+
+<ParamField path="dataset" type="Dataset" required>
+  Dataset to train on (from `dataset.load()`)
+</ParamField>
+
+<ParamField path="steps" type="integer" default="1000">
+  Total number of training steps to perform
+</ParamField>
+
+<ParamField path="learning_rate" type="float | string" default="1e-4">
+  Learning rate for the optimizer. Use a float or `"auto"` for automatic selection.
+
+  Recommended values:
+  - `1e-4` (0.0001) - Standard starting point
+  - `1e-5` (0.00001) - Conservative, slower learning
+  - `5e-5` (0.00005) - Good for SDXL
+  - `1e-3` (0.001) - Aggressive, may be unstable
+</ParamField>
+
+<ParamField path="batch_size" type="integer | string" default="1">
+  Number of images per training batch. Use `"auto"` for automatic selection.
+
+  Larger batches = more stable gradients but more memory usage.
+
+  Typical values:
+  - `1` - Minimal memory usage
+  - `2-4` - Good for most GPUs
+  - `8+` - High-memory GPUs only
+</ParamField>
+
+<ParamField path="gradient_accumulation_steps" type="integer" default="1">
+  Accumulate gradients over multiple steps before updating weights.
+
+  Effective batch size = `batch_size × gradient_accumulation_steps`
+
+  Use this to simulate larger batches without using more memory:
+  - `batch_size=1, gradient_accumulation_steps=16` ’ effective batch size of 16
+</ParamField>
+
+<ParamField path="save_steps" type="integer">
+  Save a checkpoint every N steps. If `None`, only saves at the end.
+
+  Must specify `output_dir` for checkpoints to be saved.
+</ParamField>
+
+<ParamField path="output_dir" type="string">
+  Directory to save checkpoints to. If `None`, checkpoints are not saved to disk.
+
+  Checkpoints are saved in subdirectories named `checkpoint-{step}`.
+</ParamField>
+
+<ParamField path="**kwargs" type="dict">
+  Additional training arguments (reserved for future use)
+</ParamField>
+
+### Returns
+
+<ResponseField name="lora_weights" type="dict[str, Any]">
+  Dictionary containing the trained LoRA state dict. This can be saved and loaded later.
+</ResponseField>
+
+### Example
+
+```python
+from hypergen import model, dataset
+from hypergen.training import LoRATrainer
+
+# Load model and data
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0").to("cuda")
+ds = dataset.load("./my_training_images")
+
+# Create trainer
+trainer = LoRATrainer(m, rank=16, alpha=32)
+
+# Basic training
+lora_weights = trainer.train(ds, steps=1000)
+
+# Advanced training with checkpointing
+lora_weights = trainer.train(
+    ds,
+    steps=2000,
+    learning_rate=1e-4,
+    batch_size=2,
+    gradient_accumulation_steps=8,  # Effective batch size = 16
+    output_dir="./lora_checkpoints",
+    save_steps=250  # Save every 250 steps
+)
+
+# Use the trained model
+image = m.generate("A portrait in my custom style")
+image.save("output.png")
+```
+
+### Training Output
+
+During training, you'll see output like:
+
+```
+LoRA trainable parameters: 1,234,567 / 987,654,321 (0.12%)
+
+Starting LoRA training:
+  Total steps: 1000
+  Learning rate: 0.0001
+  Batch size: 2
+  Gradient accumulation: 8
+
+Training: 100%|ˆˆˆˆˆˆˆˆˆˆˆˆ| 1000/1000 [12:34<00:00, 1.32it/s]
+
+Training complete!
+```
+
+---
+
+## train_lora()
+
+Convenience function for quick LoRA training without creating a trainer instance.
+
+```python
+from hypergen.training import train_lora
+
+lora = train_lora(model, dataset, steps=1000)
+```
+
+### Parameters
+
+<ParamField path="model" type="Model" required>
+  Model to train
+</ParamField>
+
+<ParamField path="dataset" type="Dataset" required>
+  Dataset to train on
+</ParamField>
+
+<ParamField path="**kwargs" type="dict">
+  All arguments from `LoRATrainer.train()` are supported
+</ParamField>
+
+### Returns
+
+<ResponseField name="lora_weights" type="dict[str, Any]">
+  Dictionary containing trained LoRA weights
+</ResponseField>
+
+### Example
+
+```python
+from hypergen import model, dataset
+from hypergen.training import train_lora
+
+# Load model and dataset
+m = model.load("stabilityai/sdxl-turbo").to("cuda")
+ds = dataset.load("./images")
+
+# Quick training
+lora = train_lora(m, ds, steps=500, learning_rate=1e-4)
+
+# Generate with trained model
+image = m.generate("A photo in my style")
+```
+
+<Note>
+  This function creates a `LoRATrainer` with default settings internally. For more control over training parameters, use `LoRATrainer` directly.
+</Note>
+
+---
+
+## Training Best Practices
+
+### Dataset Size
+
+<CardGroup cols={2}>
+  <Card title="Small Dataset (10-50 images)" icon="images">
+    - Use higher rank (32-64)
+    - More training steps (1500-3000)
+    - Lower learning rate (5e-5)
+  </Card>
+
+  <Card title="Large Dataset (100+ images)" icon="database">
+    - Use lower rank (8-16)
+    - Fewer steps (500-1000)
+    - Standard learning rate (1e-4)
+  </Card>
+</CardGroup>
+
+### Memory Optimization
+
+If you run out of GPU memory:
+
+1. **Reduce batch size**: Start with `batch_size=1`
+2. **Use gradient accumulation**: `gradient_accumulation_steps=16` for larger effective batches
+3. **Reduce rank**: Try `rank=8` instead of `rank=16`
+4. **Use mixed precision**: Models are loaded with `float16` by default
+
+### Learning Rate Selection
+
+<Steps>
+  <Step title="Start Conservative">
+    Begin with `learning_rate=1e-4` for most cases
+  </Step>
+
+  <Step title="Monitor Training">
+    Watch for:
+    - Too high: Loss spikes, unstable training
+    - Too low: Very slow convergence
+  </Step>
+
+  <Step title="Adjust">
+    - Increase if training is too slow
+    - Decrease if training is unstable
+  </Step>
+</Steps>
+
+### Training Duration
+
+- **Style learning**: 500-1000 steps
+- **Subject learning**: 1000-2000 steps
+- **Complex concepts**: 2000-3000+ steps
+
+Monitor the generated outputs to avoid overfitting. Stop when results look good!
+
+---
+
+## Example Workflows
+
+### Portrait Style Training
+
+```python
+from hypergen import model, dataset
+from hypergen.training import LoRATrainer
+
+# Load base model
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0").to("cuda")
+
+# Load portrait dataset
+ds = dataset.load("./portrait_photos")
+
+# Configure trainer for style
+trainer = LoRATrainer(
+    m,
+    rank=32,      # Higher rank for complex styles
+    alpha=64,
+    dropout=0.1
+)
+
+# Train
+lora = trainer.train(
+    ds,
+    steps=1500,
+    learning_rate=5e-5,  # Conservative
+    batch_size=2,
+    output_dir="./portrait_lora"
+)
+
+# Test
+image = m.generate(
+    "A portrait of a woman in professional lighting",
+    num_inference_steps=30
+)
+image.save("portrait_test.png")
+```
+
+### Fast Style Transfer
+
+```python
+from hypergen import model, dataset
+from hypergen.training import train_lora
+
+# Load fast model
+m = model.load("stabilityai/sdxl-turbo").to("cuda")
+ds = dataset.load("./art_style_images")
+
+# Quick training
+lora = train_lora(
+    m,
+    ds,
+    steps=500,
+    learning_rate=1e-4,
+    rank=16,
+    batch_size=4
+)
+
+# Generate quickly (SDXL Turbo only needs 1-4 steps)
+image = m.generate(
+    "A landscape painting",
+    num_inference_steps=4
+)
+```
+
+---
+
+## Type Reference
+
+### LoRATrainer
+
+```python
+class LoRATrainer:
+    model: Model
+    rank: int
+    alpha: int
+    target_modules: list[str] | None
+    dropout: float
+
+    def __init__(
+        model: Model,
+        rank: int = 16,
+        alpha: int = 32,
+        target_modules: list[str] | None = None,
+        dropout: float = 0.1
+    ): ...
+
+    def train(
+        dataset: Dataset,
+        steps: int = 1000,
+        learning_rate: float | str = 1e-4,
+        batch_size: int | str = 1,
+        gradient_accumulation_steps: int = 1,
+        save_steps: int | None = None,
+        output_dir: str | None = None,
+        **kwargs
+    ) -> dict[str, Any]: ...
+```
+
+### train_lora
+
+```python
+def train_lora(
+    model: Model,
+    dataset: Dataset,
+    **kwargs
+) -> dict[str, Any]: ...
+```

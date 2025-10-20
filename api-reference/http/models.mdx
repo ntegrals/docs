@@ -1,0 +1,489 @@
+---
+title: 'GET /v1/models'
+api: 'GET http://localhost:8000/v1/models'
+description: 'List available models'
+---
+
+## Overview
+
+List available models on the server. This endpoint is compatible with OpenAI's models API and returns information about the currently loaded model.
+
+<Info>
+  This endpoint requires authentication if the server was started with `--api-key`.
+</Info>
+
+---
+
+## Authentication
+
+<ParamField header="Authorization" type="string">
+  Bearer token with your API key (required if server started with `--api-key`)
+
+  Format: `Bearer YOUR_API_KEY`
+</ParamField>
+
+---
+
+## Request
+
+No request body or parameters required.
+
+---
+
+## Response
+
+<ResponseField name="object" type="string">
+  Object type, always `"list"`
+</ResponseField>
+
+<ResponseField name="data" type="array">
+  Array of available model objects
+
+  <Expandable title="Model Object">
+    <ResponseField name="id" type="string">
+      Model identifier (the model ID used when starting the server)
+    </ResponseField>
+
+    <ResponseField name="object" type="string">
+      Object type, always `"model"`
+    </ResponseField>
+
+    <ResponseField name="created" type="integer">
+      Unix timestamp when the model information was created
+    </ResponseField>
+
+    <ResponseField name="owned_by" type="string">
+      Owner of the model, always `"hypergen"`
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Examples
+
+### Basic Request
+
+<CodeGroup>
+
+```bash cURL
+curl http://localhost:8000/v1/models \
+  -H "Authorization: Bearer sk-hypergen-123456"
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "http://localhost:8000/v1/models",
+    headers={"Authorization": "Bearer sk-hypergen-123456"}
+)
+
+models = response.json()
+print(f"Available models: {len(models['data'])}")
+
+for model in models['data']:
+    print(f"  - {model['id']}")
+```
+
+```javascript JavaScript
+const response = await fetch('http://localhost:8000/v1/models', {
+  headers: {
+    'Authorization': 'Bearer sk-hypergen-123456'
+  }
+});
+
+const data = await response.json();
+console.log(`Available models: ${data.data.length}`);
+
+data.data.forEach(model => {
+  console.log(`  - ${model.id}`);
+});
+```
+
+</CodeGroup>
+
+### Response
+
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "stabilityai/stable-diffusion-xl-base-1.0",
+      "object": "model",
+      "created": 1708472400,
+      "owned_by": "hypergen"
+    }
+  ]
+}
+```
+
+---
+
+### Using OpenAI Python Client
+
+```python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="sk-hypergen-123456",
+    base_url="http://localhost:8000/v1"
+)
+
+# List all models
+models = client.models.list()
+
+for model in models.data:
+    print(f"Model ID: {model.id}")
+    print(f"Created: {model.created}")
+    print(f"Owned by: {model.owned_by}")
+```
+
+---
+
+### Using OpenAI Node.js Client
+
+```javascript
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: 'sk-hypergen-123456',
+  baseURL: 'http://localhost:8000/v1'
+});
+
+const models = await client.models.list();
+
+for (const model of models.data) {
+  console.log(`Model ID: ${model.id}`);
+  console.log(`Created: ${model.created}`);
+  console.log(`Owned by: ${model.owned_by}`);
+}
+```
+
+---
+
+## Use Cases
+
+### Discovery
+
+Check which model is currently loaded on the server:
+
+```python
+import requests
+
+response = requests.get(
+    "http://localhost:8000/v1/models",
+    headers={"Authorization": "Bearer sk-hypergen-123456"}
+)
+
+models = response.json()
+loaded_model = models["data"][0]["id"]
+
+print(f"Server is running: {loaded_model}")
+
+# Adjust request based on model
+if "turbo" in loaded_model.lower():
+    # Use SDXL Turbo settings
+    generation_params = {
+        "num_inference_steps": 4,
+        "guidance_scale": 1.0
+    }
+else:
+    # Use standard SDXL settings
+    generation_params = {
+        "num_inference_steps": 50,
+        "guidance_scale": 7.5
+    }
+```
+
+---
+
+### Validation
+
+Verify the expected model is loaded:
+
+```python
+import requests
+
+def verify_model(expected_model):
+    """Verify that the expected model is loaded."""
+    try:
+        response = requests.get(
+            "http://localhost:8000/v1/models",
+            headers={"Authorization": "Bearer sk-hypergen-123456"}
+        )
+
+        models = response.json()
+        loaded_model = models["data"][0]["id"]
+
+        if loaded_model == expected_model:
+            print(f" Correct model loaded: {loaded_model}")
+            return True
+        else:
+            print(f" Wrong model! Expected: {expected_model}, Got: {loaded_model}")
+            return False
+
+    except Exception as e:
+        print(f"Error checking model: {e}")
+        return False
+
+# Before running tests
+verify_model("stabilityai/stable-diffusion-xl-base-1.0")
+```
+
+---
+
+### Integration Testing
+
+Use in integration tests to ensure correct setup:
+
+```python
+import requests
+import pytest
+
+def test_correct_model_loaded():
+    """Test that the expected model is loaded."""
+    response = requests.get(
+        "http://localhost:8000/v1/models",
+        headers={"Authorization": "Bearer sk-hypergen-123456"}
+    )
+
+    assert response.status_code == 200
+
+    models = response.json()
+    assert models["object"] == "list"
+    assert len(models["data"]) == 1
+
+    model = models["data"][0]
+    assert model["object"] == "model"
+    assert model["owned_by"] == "hypergen"
+    assert "stabilityai" in model["id"]  # Verify it's a Stability AI model
+```
+
+---
+
+### Client Configuration
+
+Auto-configure client based on available model:
+
+```python
+import requests
+
+class HyperGenClient:
+    def __init__(self, base_url, api_key):
+        self.base_url = base_url
+        self.api_key = api_key
+        self.model_id = None
+        self._load_model_info()
+
+    def _load_model_info(self):
+        """Load model information from server."""
+        response = requests.get(
+            f"{self.base_url}/v1/models",
+            headers={"Authorization": f"Bearer {self.api_key}"}
+        )
+        models = response.json()
+        self.model_id = models["data"][0]["id"]
+
+    def get_default_params(self):
+        """Get default generation parameters based on model."""
+        if "turbo" in self.model_id.lower():
+            return {
+                "num_inference_steps": 4,
+                "guidance_scale": 1.0,
+                "size": "1024x1024"
+            }
+        elif "sdxl" in self.model_id.lower() or "xl" in self.model_id.lower():
+            return {
+                "num_inference_steps": 40,
+                "guidance_scale": 7.5,
+                "size": "1024x1024"
+            }
+        else:
+            return {
+                "num_inference_steps": 30,
+                "guidance_scale": 7.5,
+                "size": "512x512"
+            }
+
+    def generate(self, prompt, **kwargs):
+        """Generate image with auto-configured defaults."""
+        params = self.get_default_params()
+        params.update(kwargs)
+        params["prompt"] = prompt
+
+        response = requests.post(
+            f"{self.base_url}/v1/images/generations",
+            headers={"Authorization": f"Bearer {self.api_key}"},
+            json=params
+        )
+        return response.json()
+
+# Usage
+client = HyperGenClient("http://localhost:8000", "sk-hypergen-123456")
+print(f"Connected to: {client.model_id}")
+
+# Automatically uses correct settings for the loaded model
+result = client.generate("A beautiful sunset")
+```
+
+---
+
+## Error Responses
+
+### 401 Unauthorized
+
+Missing or invalid API key:
+
+```json
+{
+  "detail": "Invalid API key"
+}
+```
+
+**Causes**:
+- Missing `Authorization` header
+- Incorrect API key
+- Wrong authorization format
+
+---
+
+### 500 Internal Server Error
+
+Server error (rare):
+
+```json
+{
+  "error": {
+    "message": "Internal server error",
+    "type": "internal_error"
+  }
+}
+```
+
+---
+
+## OpenAI Compatibility
+
+This endpoint is fully compatible with OpenAI's `/v1/models` endpoint:
+
+- Same request format (no body required)
+- Same response structure
+- Works with OpenAI client libraries
+- Can be used as a drop-in replacement
+
+### Differences from OpenAI
+
+<AccordionGroup>
+  <Accordion title="Single Model">
+    HyperGen always returns a single model (the one loaded at startup), while OpenAI returns multiple models.
+  </Accordion>
+
+  <Accordion title="Model ID">
+    The model ID is the HuggingFace model identifier or local path, not an OpenAI model ID.
+  </Accordion>
+
+  <Accordion title="Owned By">
+    Always returns `"owned_by": "hypergen"` instead of OpenAI's organization names.
+  </Accordion>
+
+  <Accordion title="No Model Details">
+    HyperGen doesn't provide model capabilities, permissions, or other metadata that OpenAI includes.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Response Fields Reference
+
+### Top Level
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `object` | string | Always `"list"` |
+| `data` | array | Array of model objects (always contains 1 item) |
+
+### Model Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Model identifier from server startup |
+| `object` | string | Always `"model"` |
+| `created` | integer | Unix timestamp (current time) |
+| `owned_by` | string | Always `"hypergen"` |
+
+---
+
+## Model Identification
+
+The model `id` returned matches what was passed to `hypergen serve`:
+
+```bash
+# Server started with
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0
+
+# API returns
+{
+  "id": "stabilityai/stable-diffusion-xl-base-1.0",
+  ...
+}
+```
+
+```bash
+# Server started with local path
+hypergen serve /path/to/custom-model
+
+# API returns
+{
+  "id": "/path/to/custom-model",
+  ...
+}
+```
+
+---
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Cache Model Information">
+    Model information doesn't change during server lifetime. Cache the response to avoid unnecessary API calls.
+
+    ```python
+    # Good: Cache model info
+    model_info = client.models.list()
+    model_id = model_info.data[0].id
+
+    # Bad: Fetch on every generation
+    for prompt in prompts:
+        model_info = client.models.list()  # Unnecessary
+        generate(prompt)
+    ```
+  </Accordion>
+
+  <Accordion title="Use for Configuration">
+    Use the model ID to auto-configure generation parameters based on the model type.
+  </Accordion>
+
+  <Accordion title="Validation">
+    Check the model ID at startup to ensure the correct model is loaded before processing requests.
+  </Accordion>
+
+  <Accordion title="Error Handling">
+    Handle cases where the API is unavailable or returns an unexpected model.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Related Endpoints
+
+<CardGroup cols={2}>
+  <Card title="Generate Images" icon="image" href="/api-reference/http/generate">
+    Generate images with the loaded model
+  </Card>
+
+  <Card title="Health Check" icon="heart-pulse" href="/api-reference/http/health">
+    Check server health and status
+  </Card>
+</CardGroup>

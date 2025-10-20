@@ -1,0 +1,341 @@
+---
+title: Installation
+description: Complete installation guide for HyperGen
+---
+
+## System Requirements
+
+<CardGroup cols={2}>
+  <Card title="Python Version" icon="python">
+    Python 3.10 or higher
+  </Card>
+
+  <Card title="GPU (Recommended)" icon="microchip">
+    NVIDIA GPU with CUDA 11.8+
+  </Card>
+
+  <Card title="VRAM Requirements" icon="memory">
+    Minimum 8GB, Recommended 16GB+
+  </Card>
+
+  <Card title="Operating System" icon="desktop">
+    Linux, macOS, or Windows
+  </Card>
+</CardGroup>
+
+## Installation Methods
+
+### Install via pip (Recommended)
+
+The simplest way to install HyperGen:
+
+```bash
+pip install hypergen
+```
+
+This will install HyperGen and all required dependencies.
+
+### Install from Source
+
+For the latest development version or to contribute:
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/ntegrals/hypergen.git
+    cd hypergen
+    ```
+  </Step>
+
+  <Step title="Install in editable mode">
+    ```bash
+    pip install -e .
+    ```
+
+    <Note>
+      The `-e` flag installs in editable mode, so changes to the source code are reflected immediately.
+    </Note>
+  </Step>
+</Steps>
+
+### Install with uv (Faster)
+
+For faster installation using [uv](https://github.com/astral-sh/uv):
+
+```bash
+uv pip install hypergen
+```
+
+Or from source:
+
+```bash
+git clone https://github.com/ntegrals/hypergen.git
+cd hypergen
+uv pip install -e .
+```
+
+## GPU Setup
+
+### CUDA Installation
+
+HyperGen requires PyTorch with CUDA support for GPU acceleration.
+
+<Tabs>
+  <Tab title="CUDA 12.1">
+    ```bash
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+    ```
+  </Tab>
+
+  <Tab title="CUDA 11.8">
+    ```bash
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+    ```
+  </Tab>
+
+  <Tab title="CPU Only">
+    ```bash
+    pip install torch torchvision
+    ```
+
+    <Warning>
+      CPU-only mode is not recommended for training or inference. Performance will be significantly slower.
+    </Warning>
+  </Tab>
+</Tabs>
+
+### Verify GPU Setup
+
+Check that PyTorch can access your GPU:
+
+```python
+import torch
+
+print(f"CUDA available: {torch.cuda.is_available()}")
+print(f"CUDA version: {torch.version.cuda}")
+print(f"GPU count: {torch.cuda.device_count()}")
+if torch.cuda.is_available():
+    print(f"GPU name: {torch.cuda.get_device_name(0)}")
+```
+
+Expected output:
+```
+CUDA available: True
+CUDA version: 12.1
+GPU count: 1
+GPU name: NVIDIA GeForce RTX 4090
+```
+
+## Dependencies
+
+HyperGen automatically installs the following core dependencies:
+
+| Package | Version | Purpose |
+|---------|---------|---------|
+| `torch` | >=2.0.0 | Deep learning framework |
+| `diffusers` | >=0.30.0 | Diffusion model pipelines |
+| `transformers` | >=4.40.0 | Text encoders and tokenizers |
+| `peft` | >=0.8.0 | LoRA and parameter-efficient fine-tuning |
+| `accelerate` | >=0.30.0 | Training acceleration |
+| `safetensors` | >=0.4.0 | Safe model serialization |
+| `pillow` | >=10.0.0 | Image processing |
+| `numpy` | >=1.24.0 | Numerical operations |
+| `fastapi` | >=0.104.0 | API server framework |
+| `uvicorn` | >=0.24.0 | ASGI server |
+| `pydantic` | >=2.0.0 | Data validation |
+
+## Optional Dependencies
+
+### Flash Attention (Recommended)
+
+For faster training and inference with attention optimization:
+
+```bash
+pip install hypergen[flash]
+```
+
+Or manually:
+
+```bash
+pip install flash-attn>=2.5.0
+```
+
+<Note>
+  Flash Attention requires CUDA and may take several minutes to compile on first installation.
+</Note>
+
+### xFormers (Alternative Optimization)
+
+Alternative memory-efficient attention implementation:
+
+```bash
+pip install hypergen[xformers]
+```
+
+Or manually:
+
+```bash
+pip install xformers>=0.0.25
+```
+
+### DeepSpeed (Multi-GPU Training)
+
+For distributed training across multiple GPUs:
+
+```bash
+pip install hypergen[deepspeed]
+```
+
+Or manually:
+
+```bash
+pip install deepspeed>=0.14.0
+```
+
+### Video Models Support
+
+For CogVideoX and other video diffusion models:
+
+```bash
+pip install hypergen[video]
+```
+
+Or manually:
+
+```bash
+pip install av>=12.0.0 opencv-python>=4.9.0
+```
+
+### All Optional Dependencies
+
+Install everything at once:
+
+```bash
+pip install hypergen[all]
+```
+
+<Warning>
+  This will install all optional dependencies, which may take significant time and disk space.
+</Warning>
+
+## Development Installation
+
+For contributing to HyperGen:
+
+```bash
+git clone https://github.com/ntegrals/hypergen.git
+cd hypergen
+
+# Install with dev dependencies
+pip install -e ".[dev]"
+```
+
+This includes:
+- `pytest` - Testing framework
+- `pytest-cov` - Coverage reporting
+- `ruff` - Linting and formatting
+
+## Troubleshooting
+
+### CUDA Out of Memory
+
+If you encounter CUDA out of memory errors:
+
+1. Reduce batch size:
+   ```python
+   lora = m.train_lora(ds, batch_size=1)
+   ```
+
+2. Enable gradient checkpointing (coming in Phase 2)
+
+3. Use a smaller model or lower precision:
+   ```python
+   m = model.load("model_id", torch_dtype="float16")
+   ```
+
+### Installation Fails on Flash Attention
+
+Flash Attention requires specific CUDA versions and compilation:
+
+1. Ensure you have CUDA 11.8 or 12.1 installed
+2. Install build tools:
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install build-essential
+
+   # macOS
+   xcode-select --install
+   ```
+
+3. Skip Flash Attention for now:
+   ```bash
+   pip install hypergen
+   # Don't install hypergen[flash]
+   ```
+
+### Import Errors
+
+If you get import errors after installation:
+
+1. Verify installation:
+   ```bash
+   pip show hypergen
+   ```
+
+2. Reinstall in a clean environment:
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install hypergen
+   ```
+
+### macOS Metal (MPS) Support
+
+For Apple Silicon Macs:
+
+```python
+# Use MPS backend instead of CUDA
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+m.to("mps")
+```
+
+<Note>
+  MPS support is experimental. Some features may not work as expected.
+</Note>
+
+## Verifying Installation
+
+Test your installation with a quick script:
+
+```python
+from hypergen import model, dataset
+import torch
+
+print(f"HyperGen installed successfully!")
+print(f"PyTorch version: {torch.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+
+# Try loading a small model (optional)
+# m = model.load("runwayml/stable-diffusion-v1-5")
+# print("Model loaded successfully!")
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Train your first LoRA in 5 minutes
+  </Card>
+
+  <Card title="Training Guide" icon="graduation-cap" href="/training/lora">
+    Learn about LoRA training parameters
+  </Card>
+
+  <Card title="Serving Guide" icon="server" href="/serving/quickstart">
+    Deploy a model with the API server
+  </Card>
+
+  <Card title="Supported Models" icon="list" href="/models/supported">
+    See which models are compatible
+  </Card>
+</CardGroup>

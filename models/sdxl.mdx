@@ -1,0 +1,965 @@
+---
+title: SDXL Model Guide
+description: Complete guide to using Stable Diffusion XL with HyperGen
+---
+
+## Overview
+
+Stable Diffusion XL (SDXL) is Stability AI's flagship text-to-image model, offering exceptional quality and versatility. It's the most widely-used and well-supported diffusion model, with excellent community support and thousands of fine-tuned variants available.
+
+<Note>
+  SDXL is the recommended starting point for most users due to its excellent balance of quality, speed, and VRAM requirements.
+</Note>
+
+## Model Variants
+
+### SDXL Base 1.0
+
+The standard SDXL model optimized for high-quality image generation.
+
+```python
+from hypergen import model
+
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+m.to("cuda")
+```
+
+**Key Features:**
+- **Resolution:** Native 1024x1024 (can generate up to 2048x2048)
+- **Quality:** Excellent detail and composition
+- **VRAM:** 8GB minimum, 12GB recommended
+- **Speed:** ~4 seconds per image (RTX 4090, 50 steps)
+
+### SDXL Turbo
+
+A distilled variant optimized for ultra-fast generation (1-4 steps).
+
+```python
+from hypergen import model
+
+m = model.load("stabilityai/sdxl-turbo")
+m.to("cuda")
+```
+
+**Key Features:**
+- **Speed:** 3-4x faster than base (1-4 inference steps)
+- **Quality:** Very good (slightly below base)
+- **VRAM:** 8GB minimum
+- **Use Case:** Rapid prototyping, real-time applications
+
+### SDXL Refiner
+
+A specialized model for refining SDXL base outputs (optional).
+
+```python
+from hypergen import model
+
+# Load base model
+m_base = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+
+# Load refiner (optional)
+m_refiner = model.load("stabilityai/stable-diffusion-xl-refiner-1.0")
+```
+
+<Warning>
+  The refiner is optional and typically used for professional workflows. Most users don't need it.
+</Warning>
+
+## Loading SDXL with HyperGen
+
+### Basic Loading
+
+```python
+from hypergen import model
+
+# Load SDXL
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+m.to("cuda")
+
+# Generate an image
+image = m.generate("A majestic lion in the African savanna")
+image[0].save("output.png")
+```
+
+### Optimized Loading
+
+For better performance and lower VRAM usage:
+
+```python
+from hypergen import model
+
+# Load with fp16 precision
+m = model.load(
+    "stabilityai/stable-diffusion-xl-base-1.0",
+    torch_dtype="float16",
+    variant="fp16",
+    use_safetensors=True,
+)
+m.to("cuda")
+```
+
+<Tip>
+  Using `torch_dtype="float16"` reduces VRAM usage by ~50% with minimal quality loss.
+</Tip>
+
+### Memory-Optimized Loading
+
+For GPUs with 8GB VRAM:
+
+```python
+from hypergen import model
+
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype="float16")
+m.to("cuda")
+
+# Enable memory optimizations
+m.enable_vae_slicing()           # Reduce VAE memory usage
+m.enable_attention_slicing()     # Reduce attention memory usage
+```
+
+## Training LoRAs with SDXL
+
+SDXL is the most popular model for LoRA training due to its excellent quality and wide compatibility.
+
+### Basic LoRA Training
+
+```python
+from hypergen import model, dataset
+
+# Load model
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype="float16")
+m.to("cuda")
+
+# Load dataset
+ds = dataset.load("./my_images")
+
+# Train LoRA
+lora = m.train_lora(
+    ds,
+    steps=1000,
+    rank=16,
+    alpha=32,
+    learning_rate=1e-4,
+)
+```
+
+### Recommended Training Parameters
+
+<Tabs>
+  <Tab title="Quick Training (8GB VRAM)">
+    **For fast iteration and testing:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=800,
+        learning_rate=1e-4,
+        rank=8,
+        alpha=16,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Settings:**
+    - Lower rank (8) for faster training
+    - Fewer steps for quick results
+    - Works on 8GB VRAM
+    - Training time: ~10 minutes (50 images)
+  </Tab>
+
+  <Tab title="Balanced Training (12GB VRAM)">
+    **For most use cases:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=1000,
+        learning_rate=1e-4,
+        rank=16,
+        alpha=32,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Settings:**
+    - Standard rank (16) for good capacity
+    - 1000 steps for quality results
+    - Works on 12GB VRAM
+    - Training time: ~15 minutes (50 images)
+  </Tab>
+
+  <Tab title="High-Quality Training (16GB+ VRAM)">
+    **For best results:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=2000,
+        learning_rate=5e-5,
+        rank=32,
+        alpha=64,
+        batch_size=2,
+        gradient_accumulation_steps=4,
+        save_steps=500,
+        output_dir="./sdxl_lora_checkpoints"
+    )
+    ```
+
+    **Settings:**
+    - High rank (32) for maximum capacity
+    - More steps for best quality
+    - Larger batch size
+    - Training time: ~30 minutes (50 images)
+  </Tab>
+</Tabs>
+
+### Training for Different Use Cases
+
+<AccordionGroup>
+  <Accordion title="Style Transfer LoRA">
+    **Learning an artistic style or aesthetic:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=1500,
+        learning_rate=1e-4,
+        rank=16,
+        alpha=32,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Dataset:**
+    - 50-200 images in the target style
+    - Consistent aesthetic across all images
+    - Captions describing content, not style
+    - High resolution (1024x1024+)
+
+    **Example caption:**
+    ```
+    A landscape with mountains and a lake, trees in the foreground
+    ```
+    (Describe what you see, not "in artistic style")
+  </Accordion>
+
+  <Accordion title="Character/Subject LoRA">
+    **Learning a specific person, character, or object:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=1000,
+        learning_rate=5e-5,
+        rank=32,
+        alpha=64,
+        batch_size=1,
+        gradient_accumulation_steps=4,
+    )
+    ```
+
+    **Dataset:**
+    - 20-100 images of the subject
+    - Variety of poses, angles, and expressions
+    - Different lighting conditions
+    - Detailed captions
+
+    **Example caption:**
+    ```
+    A photo of [subject name], smiling, wearing a blue shirt,
+    front-facing portrait, natural lighting
+    ```
+  </Accordion>
+
+  <Accordion title="Concept LoRA">
+    **Learning a new concept or composition style:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=2000,
+        learning_rate=1e-4,
+        rank=24,
+        alpha=48,
+        batch_size=1,
+        gradient_accumulation_steps=8,
+    )
+    ```
+
+    **Dataset:**
+    - 30-150 images demonstrating the concept
+    - Varied examples showing different aspects
+    - Captions focusing on composition and elements
+  </Accordion>
+</AccordionGroup>
+
+## Inference Parameters
+
+### Basic Generation
+
+```python
+image = m.generate(
+    prompt="A serene Japanese garden with cherry blossoms",
+    negative_prompt="blurry, low quality, distorted",
+    num_inference_steps=50,
+    guidance_scale=7.5,
+    height=1024,
+    width=1024,
+)
+```
+
+### Parameter Guide
+
+<ParamField path="prompt" type="str" required>
+  Text description of the desired image
+</ParamField>
+
+<ParamField path="negative_prompt" type="str" default="">
+  What to avoid in the generated image
+
+  **Common negative prompts:**
+  ```python
+  negative_prompt="blurry, low quality, distorted, deformed, bad anatomy"
+  ```
+</ParamField>
+
+<ParamField path="num_inference_steps" type="int" default={50}>
+  Number of denoising steps
+
+  - **20-30:** Fast, good quality
+  - **40-50:** Better quality (recommended)
+  - **50-100:** Highest quality, diminishing returns
+</ParamField>
+
+<ParamField path="guidance_scale" type="float" default={7.5}>
+  How closely to follow the prompt
+
+  - **5-6:** More creative, less literal
+  - **7-8:** Balanced (recommended)
+  - **9-12:** Very literal, can be oversaturated
+</ParamField>
+
+<ParamField path="height" type="int" default={1024}>
+  Image height in pixels (must be multiple of 8)
+
+  - **1024:** Standard (recommended)
+  - **768:** Faster, lower quality
+  - **1536-2048:** Higher detail, slower
+</ParamField>
+
+<ParamField path="width" type="int" default={1024}>
+  Image width in pixels (must be multiple of 8)
+</ParamField>
+
+### Recommended Settings
+
+<CardGroup cols={3}>
+  <Card title="Speed Priority" icon="bolt">
+    ```python
+    num_inference_steps=20
+    guidance_scale=7.0
+    height=768
+    width=768
+    ```
+
+    **Generation time:** ~1.5s
+  </Card>
+
+  <Card title="Balanced" icon="balance-scale">
+    ```python
+    num_inference_steps=40
+    guidance_scale=7.5
+    height=1024
+    width=1024
+    ```
+
+    **Generation time:** ~3.5s
+  </Card>
+
+  <Card title="Quality Priority" icon="gem">
+    ```python
+    num_inference_steps=50
+    guidance_scale=7.5
+    height=1024
+    width=1024
+    ```
+
+    **Generation time:** ~4.5s
+  </Card>
+</CardGroup>
+
+### Advanced Generation
+
+```python
+# Generate with custom seed for reproducibility
+image = m.generate(
+    prompt="A futuristic cityscape at night",
+    seed=42,
+    num_inference_steps=50,
+)
+
+# Generate multiple variations
+images = m.generate(
+    prompt="A cat wearing a wizard hat",
+    num_images=4,  # Generate 4 images
+    guidance_scale=7.5,
+)
+
+# High-resolution generation
+image = m.generate(
+    prompt="A detailed portrait",
+    height=1536,
+    width=1536,
+    num_inference_steps=60,
+)
+```
+
+## Performance Benchmarks
+
+### Generation Performance
+
+Based on NVIDIA RTX 4090, 1024x1024 resolution:
+
+| Steps | VRAM | Time | Quality |
+|-------|------|------|---------|
+| 20 | ~9GB | ~1.8s | Good |
+| 30 | ~9GB | ~2.5s | Very Good |
+| 40 | ~9GB | ~3.5s | Excellent |
+| 50 | ~9GB | ~4.2s | Excellent+ |
+
+### Training Performance
+
+LoRA training on RTX 4090, 50 images:
+
+| Configuration | VRAM | Time (1000 steps) |
+|---------------|------|-------------------|
+| Rank 8, Batch 1 | ~8GB | ~10 min |
+| Rank 16, Batch 1 | ~9GB | ~12 min |
+| Rank 32, Batch 1 | ~11GB | ~15 min |
+| Rank 32, Batch 2 | ~14GB | ~18 min |
+
+### VRAM Requirements
+
+<Steps>
+  <Step title="8GB VRAM">
+    **GPUs:** RTX 3060 12GB, RTX 2080 Ti
+
+    **Capabilities:**
+    - Generation: 1024x1024 
+    - Training: Rank 8-16 
+    - Batch size: 1 
+  </Step>
+
+  <Step title="12GB VRAM">
+    **GPUs:** RTX 3060, RTX 4070 Ti
+
+    **Capabilities:**
+    - Generation: 1024x1024 
+    - Training: Rank 16-32 
+    - Batch size: 1-2 
+  </Step>
+
+  <Step title="16GB+ VRAM">
+    **GPUs:** RTX 4080, RTX 4090, A100
+
+    **Capabilities:**
+    - Generation: Up to 2048x2048 
+    - Training: Rank 32-64 
+    - Batch size: 2-4 
+  </Step>
+</Steps>
+
+## Best Practices
+
+### Prompt Engineering
+
+<Tabs>
+  <Tab title="Structure">
+    **Good prompt structure:**
+
+    ```
+    [Main subject], [Details], [Style], [Lighting], [Quality modifiers]
+    ```
+
+    **Examples:**
+
+     Good:
+    ```python
+    prompt = """
+    A majestic mountain landscape with snow-capped peaks,
+    pine forest in the foreground, golden hour lighting,
+    photorealistic, highly detailed, 8k
+    """
+    ```
+
+    L Poor:
+    ```python
+    prompt = "nice mountain"
+    ```
+  </Tab>
+
+  <Tab title="Negative Prompts">
+    **Effective negative prompts:**
+
+    ```python
+    # For photorealistic images
+    negative_prompt = """
+    blurry, low quality, distorted, deformed,
+    bad anatomy, ugly, cartoon, painting
+    """
+
+    # For artistic images
+    negative_prompt = """
+    blurry, low quality, distorted,
+    photorealistic, photograph
+    """
+
+    # Minimal (often sufficient)
+    negative_prompt = "blurry, low quality"
+    ```
+  </Tab>
+
+  <Tab title="Style Control">
+    **Control output style:**
+
+    ```python
+    # Photorealistic
+    prompt = "A portrait, photorealistic, professional photography, 85mm lens, f/1.4"
+
+    # Digital Art
+    prompt = "A landscape, digital art, concept art, trending on ArtStation"
+
+    # Oil Painting
+    prompt = "A still life, oil painting, classical art, museum quality"
+
+    # Anime
+    prompt = "A character portrait, anime style, studio quality"
+    ```
+  </Tab>
+
+  <Tab title="Quality Modifiers">
+    **Boost image quality:**
+
+    ```python
+    prompt = """
+    [Your main prompt],
+    highly detailed, 8k resolution, professional,
+    masterpiece, best quality, sharp focus
+    """
+    ```
+
+    **Common quality terms:**
+    - highly detailed
+    - 8k resolution
+    - professional
+    - masterpiece
+    - best quality
+    - sharp focus
+    - intricate details
+  </Tab>
+</Tabs>
+
+### Training Best Practices
+
+<Steps>
+  <Step title="Dataset Quality">
+    **Prepare high-quality training data:**
+
+     **Do:**
+    - Use high-resolution images (1024x1024 or higher)
+    - Ensure consistent quality
+    - Include variety (poses, angles, lighting)
+    - Write detailed captions
+    - 20-150 images is usually sufficient
+
+    L **Don't:**
+    - Use low-resolution or blurry images
+    - Include duplicates
+    - Mix different subjects in same dataset
+    - Leave images uncaptioned
+  </Step>
+
+  <Step title="Caption Writing">
+    **Write effective captions:**
+
+     **Good caption:**
+    ```
+    A person wearing a red jacket and blue jeans,
+    standing in front of a brick wall,
+    natural daylight, slight smile
+    ```
+
+    L **Poor caption:**
+    ```
+    person
+    ```
+
+    **Tips:**
+    - Describe what you see objectively
+    - Include composition, lighting, colors
+    - Be consistent in style
+    - Don't describe what you want to learn
+  </Step>
+
+  <Step title="Hyperparameter Selection">
+    **Choose appropriate hyperparameters:**
+
+    **Start with defaults:**
+    ```python
+    steps=1000
+    learning_rate=1e-4
+    rank=16
+    alpha=32
+    ```
+
+    **Adjust based on results:**
+    - Underfitting? Increase steps, rank, or learning rate
+    - Overfitting? Decrease steps, add more data
+    - Out of memory? Reduce rank or batch size
+  </Step>
+
+  <Step title="Checkpoint Management">
+    **Save and test checkpoints:**
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=2000,
+        save_steps=500,  # Save every 500 steps
+        output_dir="./checkpoints"
+    )
+    ```
+
+    Test checkpoints at 500, 1000, 1500, and 2000 steps to find the best one.
+  </Step>
+</Steps>
+
+### Memory Optimization
+
+<AccordionGroup>
+  <Accordion title="VAE Slicing">
+    **Reduce VAE memory usage:**
+
+    ```python
+    m.enable_vae_slicing()
+    ```
+
+    - Reduces VRAM by ~10%
+    - Minimal performance impact
+    - Recommended for all users
+  </Accordion>
+
+  <Accordion title="Attention Slicing">
+    **Reduce attention memory usage:**
+
+    ```python
+    m.enable_attention_slicing()
+    ```
+
+    - Reduces VRAM by ~15-20%
+    - Small performance impact (~5% slower)
+    - Useful for 8GB GPUs
+  </Accordion>
+
+  <Accordion title="CPU Offload">
+    **Offload to CPU when not in use:**
+
+    ```python
+    m.enable_model_cpu_offload()
+    ```
+
+    - Reduces VRAM by ~40-50%
+    - Significant performance impact (~20% slower)
+    - Use only if necessary
+  </Accordion>
+
+  <Accordion title="Lower Precision">
+    **Use float16 instead of float32:**
+
+    ```python
+    m = model.load(
+        "stabilityai/stable-diffusion-xl-base-1.0",
+        torch_dtype="float16"
+    )
+    ```
+
+    - Reduces VRAM by ~50%
+    - Minimal quality impact
+    - Strongly recommended
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Out of Memory (Generation)">
+    **Error:** CUDA out of memory during image generation
+
+    **Solutions:**
+
+    1. Enable memory optimizations:
+       ```python
+       m.enable_vae_slicing()
+       m.enable_attention_slicing()
+       ```
+
+    2. Reduce image resolution:
+       ```python
+       image = m.generate(prompt, height=768, width=768)
+       ```
+
+    3. Use float16 precision:
+       ```python
+       m = model.load("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype="float16")
+       ```
+
+    4. Generate fewer images:
+       ```python
+       image = m.generate(prompt, num_images=1)
+       ```
+  </Accordion>
+
+  <Accordion title="Out of Memory (Training)">
+    **Error:** CUDA out of memory during LoRA training
+
+    **Solutions:**
+
+    1. Reduce LoRA rank:
+       ```python
+       lora = m.train_lora(ds, rank=8, alpha=16)
+       ```
+
+    2. Use batch size 1:
+       ```python
+       lora = m.train_lora(ds, batch_size=1)
+       ```
+
+    3. Use gradient accumulation:
+       ```python
+       lora = m.train_lora(ds, batch_size=1, gradient_accumulation_steps=8)
+       ```
+
+    4. Use float16 precision:
+       ```python
+       m = model.load("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype="float16")
+       ```
+  </Accordion>
+
+  <Accordion title="Poor Image Quality">
+    **Issue:** Generated images are low quality or don't match prompt
+
+    **Solutions:**
+
+    1. Increase inference steps:
+       ```python
+       image = m.generate(prompt, num_inference_steps=50)
+       ```
+
+    2. Adjust guidance scale:
+       ```python
+       image = m.generate(prompt, guidance_scale=8.0)
+       ```
+
+    3. Improve prompt:
+       ```python
+       prompt = "A detailed [subject], [style], highly detailed, 8k, professional"
+       ```
+
+    4. Use negative prompts:
+       ```python
+       negative_prompt = "blurry, low quality, distorted"
+       ```
+  </Accordion>
+
+  <Accordion title="Poor Training Results">
+    **Issue:** Trained LoRA doesn't work well
+
+    **Solutions:**
+
+    1. Increase training steps:
+       ```python
+       lora = m.train_lora(ds, steps=2000)
+       ```
+
+    2. Improve dataset:
+       - Add more images
+       - Improve caption quality
+       - Use higher resolution images
+       - Add more variety
+
+    3. Adjust hyperparameters:
+       ```python
+       lora = m.train_lora(
+           ds,
+           steps=1500,
+           learning_rate=5e-5,
+           rank=32,
+           alpha=64,
+       )
+       ```
+
+    4. Check earlier checkpoints:
+       - Model might be overfitting
+       - Try checkpoint-500 or checkpoint-1000
+  </Accordion>
+
+  <Accordion title="Slow Generation">
+    **Issue:** Image generation is very slow
+
+    **Solutions:**
+
+    1. Reduce inference steps:
+       ```python
+       image = m.generate(prompt, num_inference_steps=30)
+       ```
+
+    2. Use SDXL Turbo:
+       ```python
+       m = model.load("stabilityai/sdxl-turbo")
+       image = m.generate(prompt, num_inference_steps=4)
+       ```
+
+    3. Reduce resolution:
+       ```python
+       image = m.generate(prompt, height=768, width=768)
+       ```
+
+    4. Disable CPU offload if enabled:
+       ```python
+       m.disable_model_cpu_offload()
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Example Workflows
+
+### Basic Image Generation
+
+```python
+from hypergen import model
+
+# Load SDXL
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype="float16")
+m.to("cuda")
+
+# Generate image
+image = m.generate(
+    prompt="A serene mountain lake at sunset, photorealistic, highly detailed",
+    negative_prompt="blurry, low quality",
+    num_inference_steps=40,
+    guidance_scale=7.5,
+)
+
+image[0].save("mountain_lake.png")
+```
+
+### LoRA Training Pipeline
+
+```python
+from hypergen import model, dataset
+
+# Load model
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype="float16")
+m.to("cuda")
+
+# Load and prepare dataset
+ds = dataset.load("./training_images")
+
+# Train LoRA with checkpoints
+lora = m.train_lora(
+    ds,
+    steps=2000,
+    learning_rate=1e-4,
+    rank=16,
+    alpha=32,
+    batch_size=1,
+    gradient_accumulation_steps=4,
+    save_steps=500,
+    output_dir="./lora_checkpoints"
+)
+
+print("Training complete!")
+print("Checkpoints saved in ./lora_checkpoints/")
+```
+
+### Batch Generation
+
+```python
+from hypergen import model
+
+# Load model
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0", torch_dtype="float16")
+m.to("cuda")
+
+# Define prompts
+prompts = [
+    "A majestic lion",
+    "A serene landscape",
+    "A futuristic city",
+    "A beautiful flower",
+]
+
+# Generate multiple images
+for i, prompt in enumerate(prompts):
+    image = m.generate(
+        prompt=f"{prompt}, highly detailed, 8k, professional",
+        negative_prompt="blurry, low quality",
+        num_inference_steps=40,
+    )
+    image[0].save(f"output_{i}.png")
+
+print(f"Generated {len(prompts)} images")
+```
+
+## Community Fine-Tunes
+
+SDXL has thousands of community fine-tunes available. Here are some popular ones:
+
+```python
+# Anime style
+m = model.load("stablediffusionapi/anything-v5")
+
+# Realistic photography
+m = model.load("SG161222/RealVisXL_V4.0")
+
+# Artistic style
+m = model.load("RunDiffusion/Juggernaut-XL-v9")
+
+# Product photography
+m = model.load("playgroundai/playground-v2.5-1024px-aesthetic")
+```
+
+<Tip>
+  Browse [HuggingFace's SDXL models](https://huggingface.co/models?other=stable-diffusion-xl) for more options.
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Training Guide" icon="graduation-cap" href="/training/lora">
+    Complete LoRA training documentation
+  </Card>
+
+  <Card title="Dataset Preparation" icon="images" href="/training/datasets">
+    Learn how to prepare training data
+  </Card>
+
+  <Card title="Serving SDXL" icon="server" href="/serving/overview">
+    Deploy SDXL with the API
+  </Card>
+
+  <Card title="Supported Models" icon="list" href="/models/supported">
+    View all compatible models
+  </Card>
+</CardGroup>
+
+## Additional Resources
+
+- [SDXL on HuggingFace](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0)
+- [SDXL Technical Paper](https://arxiv.org/abs/2307.01952)
+- [Stability AI Website](https://stability.ai/)

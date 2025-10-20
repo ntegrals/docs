@@ -1,0 +1,441 @@
+---
+title: Serving Quick Start
+description: Start serving models in 5 minutes
+---
+
+## Start Your First Server
+
+Deploy a diffusion model with one command:
+
+```bash
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0
+```
+
+The server will start on `http://localhost:8000`. You'll see:
+
+```
+INFO - Starting HyperGen server...
+INFO - Model: stabilityai/stable-diffusion-xl-base-1.0
+INFO - Device: cuda
+INFO - Host: 0.0.0.0
+INFO - Port: 8000
+INFO - Initializing model worker...
+INFO - Server ready!
+```
+
+<Note>
+  The first run will download the model from HuggingFace, which may take several minutes.
+</Note>
+
+## Generate Images
+
+### Using OpenAI Python Client
+
+Install the OpenAI client if you don't have it:
+
+```bash
+pip install openai pillow
+```
+
+Then generate images:
+
+```python
+from openai import OpenAI
+import base64
+from pathlib import Path
+
+# Create client
+client = OpenAI(
+    api_key="not-needed",  # No auth by default
+    base_url="http://localhost:8000/v1"
+)
+
+# Generate images
+response = client.images.generate(
+    model="sdxl",
+    prompt="A cat holding a sign that says hello world",
+    n=2,
+    size="1024x1024",
+    response_format="b64_json"
+)
+
+# Save images
+for i, img_data in enumerate(response.data):
+    img_bytes = base64.b64decode(img_data.b64_json)
+    Path(f"output_{i}.png").write_bytes(img_bytes)
+    print(f"Saved output_{i}.png")
+```
+
+### Using cURL
+
+Test with cURL:
+
+```bash
+curl http://localhost:8000/v1/images/generations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "A serene mountain landscape",
+    "n": 1,
+    "size": "1024x1024"
+  }'
+```
+
+### Using Requests
+
+```python
+import requests
+import base64
+
+response = requests.post(
+    "http://localhost:8000/v1/images/generations",
+    json={
+        "prompt": "A sunset over the ocean",
+        "n": 1,
+        "size": "1024x1024",
+        "response_format": "b64_json",
+        "num_inference_steps": 30,
+        "guidance_scale": 7.5
+    }
+)
+
+data = response.json()
+
+# Save first image
+img_bytes = base64.b64decode(data["data"][0]["b64_json"])
+with open("sunset.png", "wb") as f:
+    f.write(img_bytes)
+```
+
+## Server Options
+
+### With Authentication
+
+Secure your server with an API key:
+
+```bash
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 \
+  --api-key your-secret-key-here
+```
+
+Then use it from your client:
+
+```python
+client = OpenAI(
+    api_key="your-secret-key-here",
+    base_url="http://localhost:8000/v1"
+)
+```
+
+<Tip>
+  Generate a secure API key with: `openssl rand -hex 32`
+</Tip>
+
+### Custom Port
+
+Run on a different port:
+
+```bash
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 --port 8080
+```
+
+### Custom Data Type
+
+Use bfloat16 for better quality on supported GPUs:
+
+```bash
+hypergen serve black-forest-labs/FLUX.1-dev --dtype bfloat16
+```
+
+### With LoRA
+
+Serve a model with a LoRA adapter:
+
+```bash
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 \
+  --lora ./my_trained_lora
+```
+
+## Common Use Cases
+
+### Serve SDXL
+
+```bash
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0
+```
+
+Default settings work well for SDXL.
+
+### Serve FLUX.1
+
+```bash
+hypergen serve black-forest-labs/FLUX.1-dev \
+  --dtype bfloat16 \
+  --max-queue-size 50
+```
+
+Use bfloat16 for FLUX models.
+
+### Serve SD 1.5
+
+```bash
+hypergen serve runwayml/stable-diffusion-v1-5 \
+  --port 8000
+```
+
+Smaller model, faster inference.
+
+### Serve with Custom Settings
+
+```bash
+hypergen serve stabilityai/stable-diffusion-xl-base-1.0 \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --api-key $(openssl rand -hex 32) \
+  --dtype float16 \
+  --max-queue-size 100 \
+  --max-batch-size 4
+```
+
+Production-ready configuration.
+
+## Advanced Generation Parameters
+
+### Control Inference Steps
+
+```python
+response = client.images.generate(
+    model="sdxl",
+    prompt="A beautiful landscape",
+    num_inference_steps=30,  # Faster but lower quality
+    # Or 50-100 for higher quality
+)
+```
+
+### Use Negative Prompts
+
+```python
+response = client.images.generate(
+    model="sdxl",
+    prompt="A portrait of a person",
+    negative_prompt="blurry, low quality, distorted",
+)
+```
+
+### Set Random Seed
+
+For reproducible results:
+
+```python
+response = client.images.generate(
+    model="sdxl",
+    prompt="A cat in a garden",
+    seed=42,  # Same seed = same image
+)
+```
+
+### Adjust Guidance Scale
+
+Control adherence to prompt:
+
+```python
+response = client.images.generate(
+    model="sdxl",
+    prompt="Abstract art",
+    guidance_scale=12.0,  # Higher = stricter prompt following
+)
+```
+
+### Generate Multiple Images
+
+```python
+response = client.images.generate(
+    model="sdxl",
+    prompt="A robot playing guitar",
+    n=4,  # Generate 4 variations
+)
+
+for i, img_data in enumerate(response.data):
+    # Save each image
+    pass
+```
+
+## Health Checks
+
+### Check Server Status
+
+```bash
+curl http://localhost:8000/health
+```
+
+Response:
+```json
+{
+  "status": "healthy",
+  "model": "stabilityai/stable-diffusion-xl-base-1.0",
+  "queue_size": 0,
+  "device": "cuda"
+}
+```
+
+### List Available Models
+
+```bash
+curl http://localhost:8000/v1/models
+```
+
+Response:
+```json
+{
+  "object": "list",
+  "data": [
+    {
+      "id": "stabilityai/stable-diffusion-xl-base-1.0",
+      "object": "model",
+      "created": 1234567890,
+      "owned_by": "hypergen"
+    }
+  ]
+}
+```
+
+## Complete Example Script
+
+Save as `generate.py`:
+
+```python
+#!/usr/bin/env python3
+"""
+Generate images using HyperGen server.
+
+Usage:
+    python generate.py "A cat holding a sign"
+"""
+
+import sys
+import base64
+from pathlib import Path
+from openai import OpenAI
+
+def generate_image(prompt: str, output: str = "output.png"):
+    """Generate an image from a prompt."""
+    client = OpenAI(
+        api_key="not-needed",
+        base_url="http://localhost:8000/v1"
+    )
+
+    print(f"Generating: {prompt}")
+
+    response = client.images.generate(
+        model="sdxl",
+        prompt=prompt,
+        n=1,
+        size="1024x1024",
+        response_format="b64_json",
+        num_inference_steps=50,
+        guidance_scale=7.5
+    )
+
+    # Save image
+    img_bytes = base64.b64decode(response.data[0].b64_json)
+    Path(output).write_bytes(img_bytes)
+
+    print(f"Saved to: {output}")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python generate.py 'your prompt here'")
+        sys.exit(1)
+
+    prompt = sys.argv[1]
+    generate_image(prompt)
+```
+
+Run it:
+
+```bash
+python generate.py "A serene Japanese garden with cherry blossoms"
+```
+
+## Troubleshooting
+
+### Server won't start
+
+**Issue:** Port already in use
+
+**Solution:**
+```bash
+# Use a different port
+hypergen serve model_id --port 8001
+```
+
+### CUDA out of memory
+
+**Issue:** Model too large for GPU
+
+**Solutions:**
+1. Use a smaller model:
+   ```bash
+   hypergen serve runwayml/stable-diffusion-v1-5
+   ```
+
+2. Use float16:
+   ```bash
+   hypergen serve model_id --dtype float16
+   ```
+
+3. Close other GPU applications
+
+### Slow generation
+
+**Issue:** Generation takes too long
+
+**Solutions:**
+1. Reduce inference steps:
+   ```python
+   num_inference_steps=30  # Instead of 50
+   ```
+
+2. Use a faster model:
+   ```bash
+   hypergen serve stabilityai/sdxl-turbo  # Optimized for speed
+   ```
+
+### Connection refused
+
+**Issue:** Can't connect to server
+
+**Checks:**
+1. Is the server running?
+   ```bash
+   curl http://localhost:8000/health
+   ```
+
+2. Is the port correct?
+   ```python
+   base_url="http://localhost:8000/v1"  # Check port number
+   ```
+
+3. Is the host correct?
+   ```bash
+   hypergen serve model_id --host 0.0.0.0  # Allow external connections
+   ```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="sliders" href="/serving/configuration">
+    All server configuration options
+  </Card>
+
+  <Card title="Serving Overview" icon="book" href="/serving/overview">
+    Understand the server architecture
+  </Card>
+
+  <Card title="Training" icon="graduation-cap" href="/training/lora">
+    Train custom LoRAs to serve
+  </Card>
+
+  <Card title="Supported Models" icon="list" href="/models/supported">
+    See all compatible models
+  </Card>
+</CardGroup>

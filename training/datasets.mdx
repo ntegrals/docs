@@ -1,0 +1,336 @@
+---
+title: Datasets
+description: How to prepare and load datasets for training
+---
+
+## Overview
+
+HyperGen makes it easy to load training datasets. Simply organize your images in a folder, optionally add captions, and load with one line of code.
+
+## Basic Usage
+
+```python
+from hypergen import dataset
+
+# Load all images from a folder
+ds = dataset.load("./my_training_images")
+print(f"Loaded {len(ds)} images")
+```
+
+## Folder Structure
+
+### Images Only
+
+The simplest structure - just put all your images in a folder:
+
+```
+my_images/
+  photo1.jpg
+  photo2.png
+  photo3.webp
+  ...
+```
+
+Supported formats:
+- `.jpg` / `.jpeg`
+- `.png`
+- `.webp`
+- `.bmp`
+
+### Images with Captions
+
+For better results, add caption files next to each image:
+
+```
+my_images/
+  photo1.jpg
+  photo1.txt        <- "A beautiful sunset over the ocean"
+  photo2.jpg
+  photo2.txt        <- "A person walking in a forest"
+  photo3.png
+  photo3.txt        <- "Close-up of a flower"
+  ...
+```
+
+**Caption files should:**
+- Have the same name as the image (except the extension)
+- Be plain text files (`.txt`)
+- Contain a descriptive caption on the first line
+- Be UTF-8 encoded
+
+<Note>
+  Captions are optional but **highly recommended**. They help the model learn what features to associate with your style or subject.
+</Note>
+
+## Loading Datasets
+
+### Simple Loading
+
+```python
+from hypergen import dataset
+
+ds = dataset.load("./my_images")
+```
+
+### Custom Extensions
+
+Specify which file extensions to include:
+
+```python
+ds = dataset.load(
+    "./my_images",
+    extensions=[".jpg", ".png"]  # Only load JPG and PNG files
+)
+```
+
+### Checking Dataset Contents
+
+```python
+# Get dataset size
+print(f"Dataset has {len(ds)} images")
+
+# Iterate over items
+for image, caption in ds:
+    print(f"Image size: {image.size}")
+    print(f"Caption: {caption}")
+    break  # Just show first item
+```
+
+### Batch Iteration
+
+Process dataset in batches:
+
+```python
+for batch in ds.batch(batch_size=4):
+    print(f"Batch has {len(batch)} items")
+    for image, caption in batch:
+        # Process each item in the batch
+        pass
+```
+
+## Dataset Guidelines
+
+### Image Count
+
+<CardGroup cols={2}>
+  <Card title="Minimum" icon="images">
+    **10-20 images**
+
+    Minimum for basic style/subject learning
+  </Card>
+
+  <Card title="Recommended" icon="sparkles">
+    **50-200 images**
+
+    Best balance of quality and training time
+  </Card>
+
+  <Card title="Maximum" icon="database">
+    **1000+ images**
+
+    For complex styles or high diversity
+  </Card>
+
+  <Card title="Diminishing Returns" icon="chart-line">
+    **Beyond 500 images**
+
+    More data helps, but gains are smaller
+  </Card>
+</CardGroup>
+
+### Image Quality
+
+**Resolution:**
+- Minimum: 512x512
+- Recommended: 1024x1024 or higher
+- The model will resize images automatically
+
+**Quality Tips:**
+- Use high-quality, sharp images
+- Avoid heavily compressed JPEGs
+- Remove watermarks if possible
+- Crop to relevant content
+
+**Variety:**
+- Include different angles and compositions
+- Vary lighting conditions
+- Mix different aspects of your subject/style
+- Avoid duplicate or near-duplicate images
+
+### Caption Guidelines
+
+Good captions help the model learn better:
+
+**Do:**
+- Describe what's in the image objectively
+- Mention key visual elements (colors, objects, actions)
+- Be specific but concise (1-2 sentences)
+- Use consistent terminology across captions
+
+**Don't:**
+- Write subjective opinions ("beautiful", "amazing")
+- Add metadata or keywords
+- Copy the same caption for all images
+- Write overly long descriptions
+
+**Examples:**
+
+<CodeGroup>
+```txt Good Caption
+A woman with red hair wearing a blue dress standing in a garden with blooming roses
+```
+
+```txt Bad Caption
+Beautiful amazing photo of a gorgeous person in nature, flowers, portrait, high quality, stunning
+```
+</CodeGroup>
+
+## Advanced Dataset Usage
+
+### Accessing Individual Items
+
+```python
+# Get specific item by index
+image, caption = ds[0]
+
+# Check if captions are available
+if caption is not None:
+    print(f"Has caption: {caption}")
+else:
+    print("No caption for this image")
+```
+
+### Dataset Properties
+
+```python
+# Image paths
+print(ds.image_paths)  # List of Path objects
+
+# Captions (may be None)
+print(ds.captions)  # List of strings or None values
+```
+
+### Custom Dataset Class
+
+For advanced use cases, you can subclass the Dataset:
+
+```python
+from hypergen.dataset import Dataset
+from pathlib import Path
+
+class MyCustomDataset(Dataset):
+    def __getitem__(self, idx):
+        # Custom loading logic
+        image, caption = super().__getitem__(idx)
+
+        # Apply custom preprocessing
+        # ...
+
+        return image, caption
+```
+
+## Common Issues
+
+### No Images Found
+
+**Error:**
+```
+ValueError: No images found in ./my_images with extensions ['.jpg', '.jpeg', ...]
+```
+
+**Solutions:**
+1. Check that the path is correct
+2. Verify images have supported extensions
+3. Ensure files aren't hidden (don't start with `.`)
+4. Try absolute path instead of relative
+
+### Missing Captions
+
+If some images don't have captions, they'll have `None` as their caption:
+
+```python
+for image, caption in ds:
+    if caption is None:
+        print("Image has no caption")
+    else:
+        print(f"Caption: {caption}")
+```
+
+This is fine - the model will work without captions, just less effectively.
+
+### Unicode/Encoding Issues
+
+If you see encoding errors, ensure caption files are UTF-8:
+
+```python
+# When creating caption files, specify UTF-8
+with open("photo1.txt", "w", encoding="utf-8") as f:
+    f.write("Your caption with émojis and -‡")
+```
+
+## Dataset Examples
+
+### Style Transfer Dataset
+
+For learning an art style:
+
+```
+art_style_dataset/
+  painting1.jpg
+  painting1.txt     <- "Abstract painting with blue and red geometric shapes"
+  painting2.jpg
+  painting2.txt     <- "Impressionist landscape with trees and water"
+  painting3.jpg
+  painting3.txt     <- "Cubist portrait with angular features"
+  ...
+```
+
+### Subject/Character Dataset
+
+For learning a specific person or character:
+
+```
+character_dataset/
+  portrait1.jpg
+  portrait1.txt     <- "Close-up portrait of John facing forward"
+  portrait2.jpg
+  portrait2.txt     <- "John smiling in profile view"
+  portrait3.jpg
+  portrait3.txt     <- "Full body shot of John wearing a suit"
+  ...
+```
+
+### Product Dataset
+
+For learning product photography:
+
+```
+product_dataset/
+  product1.jpg
+  product1.txt      <- "Red sneaker on white background from side angle"
+  product2.jpg
+  product2.txt      <- "Red sneaker on white background from top view"
+  product3.jpg
+  product3.txt      <- "Red sneaker on white background from front"
+  ...
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="LoRA Training" icon="sliders" href="/training/lora">
+    Learn how to train with your dataset
+  </Card>
+
+  <Card title="Training Overview" icon="book" href="/training/overview">
+    Understand the training process
+  </Card>
+
+  <Card title="Examples" icon="code" href="https://github.com/ntegrals/hypergen/tree/main/examples">
+    View complete training examples
+  </Card>
+
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Train your first LoRA in 5 minutes
+  </Card>
+</CardGroup>

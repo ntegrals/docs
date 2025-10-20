@@ -1,0 +1,491 @@
+---
+title: LoRA Training
+description: Complete guide to training LoRA adapters with HyperGen
+---
+
+## What is LoRA?
+
+LoRA (Low-Rank Adaptation) is a parameter-efficient fine-tuning technique that trains small adapter layers instead of the entire model. This makes training:
+
+- **Faster**: Train in minutes instead of hours
+- **Cheaper**: Use 80% less VRAM
+- **Portable**: LoRA files are 50-200MB vs 5-10GB for full models
+- **Flexible**: Easily switch between different LoRAs on the same base model
+
+## Basic Training
+
+### Simple Example
+
+Train a LoRA with default settings:
+
+```python
+from hypergen import model, dataset
+
+# Load model
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+m.to("cuda")
+
+# Load dataset
+ds = dataset.load("./my_images")
+
+# Train LoRA
+lora = m.train_lora(ds, steps=1000)
+```
+
+That's it! HyperGen handles everything automatically.
+
+## Training Parameters
+
+### Core Parameters
+
+<ParamField path="dataset" type="Dataset" required>
+  Dataset to train on (from `dataset.load()`)
+</ParamField>
+
+<ParamField path="steps" type="int" default={1000}>
+  Number of training steps to run. More steps = better learning, but longer training.
+
+  - **Quick test**: 100-500 steps
+  - **Normal training**: 1000-2000 steps
+  - **High quality**: 2000-5000 steps
+</ParamField>
+
+<ParamField path="learning_rate" type="float | 'auto'" default={0.0001}>
+  Learning rate for optimizer. Controls how quickly the model learns.
+
+  - **Default**: `1e-4` (0.0001) works well for most cases
+  - **Higher** (1e-3): Faster learning, risk of instability
+  - **Lower** (1e-5): Slower but more stable
+  - **Auto**: Let HyperGen choose (coming in Phase 2)
+</ParamField>
+
+### LoRA Configuration
+
+<ParamField path="rank" type="int" default={16}>
+  LoRA rank - controls the number of parameters in the adapter.
+
+  - **Lower** (4-8): Fewer parameters, faster training, smaller files
+  - **Medium** (16-32): Good balance (recommended)
+  - **Higher** (64-128): More capacity, larger files
+
+  Higher rank = more capacity to learn, but diminishing returns after 32-64.
+</ParamField>
+
+<ParamField path="alpha" type="int" default={32}>
+  LoRA alpha scaling parameter. Usually set to 2x the rank.
+
+  - Affects the strength of the LoRA adapter
+  - Common formula: `alpha = 2 * rank`
+  - Higher alpha = stronger LoRA effect
+</ParamField>
+
+### Training Configuration
+
+<ParamField path="batch_size" type="int | 'auto'" default={1}>
+  Number of images to process at once.
+
+  - **1**: Safest, works on 8GB VRAM
+  - **2-4**: Better training, needs 12-16GB VRAM
+  - **'auto'**: Let HyperGen optimize (coming in Phase 2)
+
+  Larger batch size can improve training quality but uses more VRAM.
+</ParamField>
+
+<ParamField path="gradient_accumulation_steps" type="int" default={1}>
+  Accumulate gradients over multiple steps before updating.
+
+  Effective batch size = `batch_size * gradient_accumulation_steps`
+
+  Use this to simulate larger batches without using more VRAM:
+  - `batch_size=1, gradient_accumulation_steps=4` H `batch_size=4`
+</ParamField>
+
+<ParamField path="save_steps" type="int | None" default={None}>
+  Save a checkpoint every N steps.
+
+  - **None**: Only save at the end
+  - **500**: Save every 500 steps
+  - Useful for long training runs to avoid losing progress
+</ParamField>
+
+<ParamField path="output_dir" type="str | None" default={None}>
+  Directory to save checkpoints and final LoRA weights.
+
+  - **None**: Don't save to disk (weights returned in memory only)
+  - **"./checkpoints"**: Save to this directory
+</ParamField>
+
+## Advanced Examples
+
+### Custom LoRA Configuration
+
+```python
+lora = m.train_lora(
+    ds,
+    steps=2000,
+    learning_rate=5e-5,
+    rank=32,                        # Higher capacity
+    alpha=64,                       # 2x rank
+    batch_size=2,                   # Process 2 images at once
+    gradient_accumulation_steps=4,  # Effective batch size = 8
+    save_steps=500,                 # Save every 500 steps
+    output_dir="./my_lora_checkpoints"
+)
+```
+
+### Memory-Constrained Training
+
+For GPUs with limited VRAM (8-12GB):
+
+```python
+lora = m.train_lora(
+    ds,
+    steps=1000,
+    rank=8,              # Lower rank uses less memory
+    alpha=16,
+    batch_size=1,        # Single image at a time
+    gradient_accumulation_steps=8  # Simulate batch_size=8
+)
+```
+
+### High-Quality Training
+
+For best results with plenty of VRAM (24GB+):
+
+```python
+lora = m.train_lora(
+    ds,
+    steps=5000,
+    learning_rate=5e-5,
+    rank=64,             # High capacity
+    alpha=128,
+    batch_size=4,
+    save_steps=1000,
+    output_dir="./checkpoints"
+)
+```
+
+### Using the LoRATrainer Directly
+
+For more control, use the `LoRATrainer` class:
+
+```python
+from hypergen import model, dataset
+from hypergen.training import LoRATrainer
+
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+m.to("cuda")
+ds = dataset.load("./images")
+
+# Create trainer with custom configuration
+trainer = LoRATrainer(
+    m,
+    rank=16,
+    alpha=32,
+    target_modules=["to_q", "to_k", "to_v", "to_out.0"],
+    dropout=0.1,
+)
+
+# Train
+lora = trainer.train(
+    ds,
+    steps=1000,
+    learning_rate=1e-4,
+)
+```
+
+## Different Model Types
+
+HyperGen's API is the same for all models:
+
+### SDXL Training
+
+```python
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+m.to("cuda")
+lora = m.train_lora(ds, steps=1000)
+```
+
+### FLUX.1 Training
+
+```python
+m = model.load("black-forest-labs/FLUX.1-dev", torch_dtype="bfloat16")
+m.to("cuda")
+lora = m.train_lora(ds, steps=1500, rank=32)
+```
+
+### Stable Diffusion 1.5 Training
+
+```python
+m = model.load("runwayml/stable-diffusion-v1-5")
+m.to("cuda")
+lora = m.train_lora(ds, steps=800, rank=8)  # Smaller model, lower rank
+```
+
+### Stable Diffusion 3 Training
+
+```python
+m = model.load("stabilityai/stable-diffusion-3-medium-diffusers")
+m.to("cuda")
+lora = m.train_lora(ds, steps=1000)
+```
+
+## Saving and Loading LoRAs
+
+### Saving During Training
+
+```python
+lora = m.train_lora(
+    ds,
+    steps=2000,
+    save_steps=500,              # Save every 500 steps
+    output_dir="./checkpoints"   # Save to this directory
+)
+```
+
+This creates:
+```
+checkpoints/
+  checkpoint-500/
+    adapter_config.json
+    adapter_model.safetensors
+  checkpoint-1000/
+    adapter_config.json
+    adapter_model.safetensors
+  checkpoint-1500/
+    adapter_config.json
+    adapter_model.safetensors
+  checkpoint-2000/
+    adapter_config.json
+    adapter_model.safetensors
+```
+
+### Loading LoRAs for Inference
+
+<Note>
+  LoRA loading for inference is coming in Phase 2. For now, LoRAs are saved but not yet loaded for generation.
+</Note>
+
+Future API (coming soon):
+
+```python
+# Load base model
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+m.to("cuda")
+
+# Load LoRA
+m.load_lora("./checkpoints/checkpoint-2000")
+
+# Generate with LoRA
+image = m.generate("A photo in my style")
+```
+
+## Training Recommendations
+
+### Hyperparameter Guidelines
+
+<Tabs>
+  <Tab title="Style Transfer">
+    **Goal:** Learn an artistic style or aesthetic
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=1500,
+        learning_rate=1e-4,
+        rank=16,
+        alpha=32,
+    )
+    ```
+
+    - Dataset: 50-200 images
+    - Captions: Describe content, not style
+  </Tab>
+
+  <Tab title="Subject/Character">
+    **Goal:** Learn a specific person, character, or object
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=1000,
+        learning_rate=5e-5,
+        rank=32,
+        alpha=64,
+    )
+    ```
+
+    - Dataset: 20-100 images
+    - Captions: Describe poses, angles, clothing
+  </Tab>
+
+  <Tab title="Concept">
+    **Goal:** Learn a new concept or composition style
+
+    ```python
+    lora = m.train_lora(
+        ds,
+        steps=2000,
+        learning_rate=1e-4,
+        rank=24,
+        alpha=48,
+    )
+    ```
+
+    - Dataset: 30-150 images
+    - Captions: Focus on composition and elements
+  </Tab>
+</Tabs>
+
+### VRAM Requirements
+
+<CardGroup cols={2}>
+  <Card title="8GB VRAM" icon="microchip">
+    **Models:** SD 1.5, SDXL (with optimizations)
+
+    ```python
+    batch_size=1
+    rank=8-16
+    ```
+  </Card>
+
+  <Card title="12GB VRAM" icon="memory">
+    **Models:** SDXL, SD3
+
+    ```python
+    batch_size=1-2
+    rank=16-32
+    ```
+  </Card>
+
+  <Card title="16GB VRAM" icon="bolt">
+    **Models:** SDXL, SD3, FLUX.1
+
+    ```python
+    batch_size=2-3
+    rank=32-64
+    ```
+  </Card>
+
+  <Card title="24GB+ VRAM" icon="rocket">
+    **Models:** All models including FLUX.1
+
+    ```python
+    batch_size=4+
+    rank=64-128
+    ```
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+### Out of Memory Errors
+
+If you encounter CUDA out of memory errors:
+
+1. **Reduce batch size:**
+   ```python
+   lora = m.train_lora(ds, batch_size=1)
+   ```
+
+2. **Lower LoRA rank:**
+   ```python
+   lora = m.train_lora(ds, rank=8)
+   ```
+
+3. **Use gradient accumulation:**
+   ```python
+   lora = m.train_lora(ds, batch_size=1, gradient_accumulation_steps=4)
+   ```
+
+4. **Use lower precision:**
+   ```python
+   m = model.load("model_id", torch_dtype="float16")  # or "bfloat16"
+   ```
+
+### Training Too Slow
+
+If training is taking too long:
+
+1. **Reduce steps:**
+   ```python
+   lora = m.train_lora(ds, steps=500)  # Quick test
+   ```
+
+2. **Increase batch size** (if you have VRAM):
+   ```python
+   lora = m.train_lora(ds, batch_size=2)
+   ```
+
+3. **Enable optimizations** (coming in Phase 2)
+
+### Poor Quality Results
+
+If the trained LoRA doesn't work well:
+
+1. **Increase training steps:**
+   ```python
+   lora = m.train_lora(ds, steps=2000)
+   ```
+
+2. **Increase LoRA rank:**
+   ```python
+   lora = m.train_lora(ds, rank=32, alpha=64)
+   ```
+
+3. **Improve dataset:**
+   - Add more images
+   - Add captions
+   - Increase image quality
+   - Add more variety
+
+4. **Adjust learning rate:**
+   ```python
+   lora = m.train_lora(ds, learning_rate=5e-5)  # Lower
+   # or
+   lora = m.train_lora(ds, learning_rate=2e-4)  # Higher
+   ```
+
+## Current Limitations
+
+<Warning>
+  HyperGen is in **pre-alpha**. The training loop is not fully implemented yet.
+</Warning>
+
+**What Works:**
+- Model loading and configuration
+- Dataset loading
+- LoRA setup with PEFT
+- Checkpoint saving structure
+
+**In Development:**
+- Complete training loop with loss calculation
+- Noise scheduling
+- Validation and metrics
+
+**Coming in Phase 2:**
+- Gradient checkpointing
+- Mixed precision training
+- Flash Attention
+- Auto-configuration
+- LoRA loading for inference
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Datasets" icon="images" href="/training/datasets">
+    Learn how to prepare training data
+  </Card>
+
+  <Card title="Training Overview" icon="book" href="/training/overview">
+    Understand the training architecture
+  </Card>
+
+  <Card title="Serving" icon="server" href="/serving/quickstart">
+    Deploy trained models with the API
+  </Card>
+
+  <Card title="Examples" icon="code" href="https://github.com/ntegrals/hypergen/tree/main/examples">
+    View complete training examples
+  </Card>
+</CardGroup>

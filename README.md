@@ -1,16 +1,14 @@
-# Mintlify Starter Kit
+# HyperGen Documentation
 
-Use the starter kit to get your docs deployed and ready to customize.
+Official documentation for HyperGen - an optimized inference and fine-tuning framework for diffusion models.
 
-Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
+## 📚 Documentation Structure
 
-- Guide pages
-- Navigation
-- Customizations
-- API reference pages
-- Use of popular components
-
-**[Follow the full quickstart guide](https://starter.mintlify.com/quickstart)**
+- **Getting Started**: Installation, quickstart guide
+- **Training**: LoRA training guides, datasets, parameters
+- **Serving**: OpenAI-compatible API server setup and configuration
+- **Models**: Model-specific guides for FLUX, SDXL, SD3
+- **API Reference**: Complete Python and HTTP API documentation
 
 ## Development
 

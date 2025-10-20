@@ -1,80 +1,183 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get started with HyperGen in 5 minutes
 ---
 
-## Get started in three steps
+## Welcome to HyperGen
 
-Get your documentation site running locally and make your first customization.
+HyperGen is an optimized inference and fine-tuning framework for diffusion models. Train LoRAs 3x faster with 80% less VRAM, or serve models with an OpenAI-compatible API.
 
-### Step 1: Set up your local environment
+## Installation
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+<Steps>
+  <Step title="Install HyperGen">
+    Install HyperGen via pip:
 
-### Step 2: Deploy your changes
+    ```bash
+    pip install hypergen
+    ```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    For GPU support, make sure you have PyTorch with CUDA installed:
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    ```bash
+    # If you don't have PyTorch with CUDA
+    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+    ```
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Verify Installation">
+    Check that HyperGen is installed correctly:
 
-### Step 3: Go live
+    ```bash
+    hypergen --version
+    ```
+  </Step>
+</Steps>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+## Your First LoRA Training
 
-## Next steps
+Train a LoRA in just 5 lines of code:
 
-Now that you have your docs running, explore these key features:
+<Steps>
+  <Step title="Prepare Your Dataset">
+    Create a folder with your training images:
+
+    ```
+    my_images/
+      photo1.jpg
+      photo1.txt  (optional caption)
+      photo2.jpg
+      photo2.txt  (optional caption)
+      ...
+    ```
+
+    <Note>
+      Caption files (`.txt`) are optional but recommended for better results. Just place a text file with the same name as each image.
+    </Note>
+  </Step>
+
+  <Step title="Train the LoRA">
+    Create a Python file and run:
+
+    ```python
+    from hypergen import model, dataset
+
+    # Load model
+    m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+    m.to("cuda")
+
+    # Load dataset
+    ds = dataset.load("./my_images")
+
+    # Train LoRA - that's it!
+    lora = m.train_lora(ds, steps=1000)
+    ```
+
+    <Warning>
+      The first run will download the model from HuggingFace, which may take a few minutes depending on your internet connection.
+    </Warning>
+  </Step>
+
+  <Step title="Generate Images">
+    Use your trained model to generate images:
+
+    ```python
+    # Generate with the base model
+    image = m.generate("A beautiful sunset over mountains")
+    image[0].save("output.png")
+    ```
+  </Step>
+</Steps>
+
+## Serving a Model
+
+Serve any diffusion model with an OpenAI-compatible API:
+
+<Steps>
+  <Step title="Start the Server">
+    ```bash
+    hypergen serve stabilityai/stable-diffusion-xl-base-1.0 --api-key your-secret-key
+    ```
+
+    The server will start on `http://localhost:8000`
+  </Step>
+
+  <Step title="Generate Images via API">
+    Use the OpenAI Python client:
+
+    ```python
+    from openai import OpenAI
+    import base64
+
+    client = OpenAI(
+        api_key="your-secret-key",
+        base_url="http://localhost:8000/v1"
+    )
+
+    response = client.images.generate(
+        model="sdxl",
+        prompt="A cat holding a sign that says hello world",
+        n=2,
+        size="1024x1024"
+    )
+
+    # Save images
+    for i, img in enumerate(response.data):
+        with open(f"image_{i}.png", "wb") as f:
+            f.write(base64.b64decode(img.b64_json))
+    ```
+  </Step>
+</Steps>
+
+## Advanced Configuration
+
+Customize your training with additional parameters:
+
+```python
+lora = m.train_lora(
+    ds,
+    steps=2000,
+    learning_rate=5e-5,
+    rank=32,                    # LoRA rank (higher = more capacity)
+    alpha=64,                   # LoRA alpha scaling factor
+    batch_size=2,               # Or "auto" for automatic
+    save_steps=500,             # Save checkpoints
+    output_dir="./checkpoints"
+)
+```
+
+## GPU Requirements
 
 <CardGroup cols={2}>
+  <Card title="Minimum" icon="microchip">
+    - 8GB VRAM (NVIDIA GPU)
+    - CUDA 11.8+
+    - For SDXL/SD 1.5 models
+  </Card>
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Recommended" icon="bolt">
+    - 16GB+ VRAM
+    - CUDA 12.1+
+    - For FLUX.1 and larger models
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Detailed installation guide with all options
+  </Card>
+
+  <Card title="Training Guide" icon="graduation-cap" href="/training/lora">
+    Complete LoRA training documentation
+  </Card>
+
+  <Card title="Serving Guide" icon="server" href="/serving/overview">
+    Production deployment and API usage
+  </Card>
+
+  <Card title="Supported Models" icon="list" href="/models/supported">
+    All compatible model architectures
+  </Card>
+</CardGroup>

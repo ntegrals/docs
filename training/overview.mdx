@@ -1,0 +1,175 @@
+---
+title: Training Overview
+description: Overview of HyperGen's training capabilities and roadmap
+---
+
+## Introduction
+
+HyperGen provides a simple, high-level API for training LoRA (Low-Rank Adaptation) adapters on diffusion models. The framework is designed to be:
+
+- **Dead Simple**: Train a LoRA in 5 lines of code
+- **Optimized**: Built on PEFT, Diffusers, and PyTorch for maximum efficiency
+- **Flexible**: Simple for beginners, powerful for experts
+- **Universal**: Works with any diffusers-compatible model
+
+## Training Methods
+
+### LoRA (Low-Rank Adaptation)
+
+LoRA is the primary fine-tuning method in HyperGen. It works by training small adapter layers that can be added to a base model without modifying the original weights.
+
+**Benefits:**
+- Fast training (minutes instead of hours)
+- Low VRAM requirements (8GB+ vs 24GB+ for full fine-tuning)
+- Small file sizes (typically 50-200MB vs 5-10GB for full models)
+- Easily shareable and switchable
+
+**Current Status:**  Available (training loop implementation in progress)
+
+## Quick Example
+
+```python
+from hypergen import model, dataset
+
+# Load model and dataset
+m = model.load("stabilityai/stable-diffusion-xl-base-1.0")
+m.to("cuda")
+ds = dataset.load("./my_images")
+
+# Train LoRA
+lora = m.train_lora(ds, steps=1000)
+```
+
+## Development Roadmap
+
+### Phase 1: Core Architecture 
+
+<Steps>
+  <Step title="Model Loading">
+     Complete - Load any diffusers-compatible model from HuggingFace
+  </Step>
+
+  <Step title="Dataset Handling">
+     Complete - Load images and captions from folders
+  </Step>
+
+  <Step title="LoRA Training Scaffold">
+     Complete - PEFT integration and parameter configuration
+  </Step>
+
+  <Step title="Training Loop">
+    =§ In Progress - Implementing noise scheduling and loss calculation
+  </Step>
+</Steps>
+
+### Phase 2: Optimizations ó
+
+Planned optimizations for faster training and lower memory usage:
+
+- **Gradient Checkpointing**: Trade compute for memory
+- **Mixed Precision Training**: Faster training with FP16/BF16
+- **Flash Attention**: Memory-efficient attention computation
+- **Auto-configuration**: Automatic batch size and learning rate tuning
+- **Memory-efficient Loading**: Load models with less VRAM overhead
+
+### Phase 3: Advanced Features =.
+
+Future enhancements for production use:
+
+- **Multi-GPU Training**: Distributed training across multiple GPUs
+- **Custom Training Loops**: Fine-grained control over training
+- **Advanced Schedulers**: Cosine, polynomial, and custom LR schedules
+- **Validation and Metrics**: Track training progress with metrics
+- **Resume from Checkpoint**: Continue interrupted training
+
+## Current Limitations
+
+<Note>
+  HyperGen is currently in **pre-alpha** status. The following limitations apply:
+</Note>
+
+**Training:**
+- LoRA training loop is not fully implemented yet
+- No validation or metric tracking
+- Single GPU only
+- Basic optimizations only
+
+**What Works Now:**
+- Model and dataset loading
+- LoRA configuration with PEFT
+- Training scaffold and parameter setup
+- Checkpoint saving
+
+**Coming Soon:**
+- Complete training loop with loss calculation
+- Gradient checkpointing and mixed precision
+- Automatic optimization based on available VRAM
+
+## Training Performance
+
+Expected performance after Phase 2 optimizations:
+
+<CardGroup cols={2}>
+  <Card title="SDXL LoRA" icon="image">
+    **GPU:** RTX 4090 (24GB)
+    - **Steps:** 1000
+    - **Time:** ~15 minutes
+    - **Memory:** ~12GB VRAM
+  </Card>
+
+  <Card title="FLUX.1 LoRA" icon="bolt">
+    **GPU:** RTX 4090 (24GB)
+    - **Steps:** 1000
+    - **Time:** ~25 minutes
+    - **Memory:** ~18GB VRAM
+  </Card>
+
+  <Card title="SD 1.5 LoRA" icon="rabbit">
+    **GPU:** RTX 3060 (12GB)
+    - **Steps:** 1000
+    - **Time:** ~8 minutes
+    - **Memory:** ~6GB VRAM
+  </Card>
+
+  <Card title="CogVideoX LoRA" icon="video">
+    **GPU:** A100 (40GB)
+    - **Steps:** 500
+    - **Time:** ~45 minutes
+    - **Memory:** ~28GB VRAM
+  </Card>
+</CardGroup>
+
+<Note>
+  These are estimated performance targets. Actual performance may vary based on dataset size, image resolution, and configuration.
+</Note>
+
+## Supported Architectures
+
+HyperGen works with any diffusers-compatible model:
+
+-  **Stable Diffusion 1.5**
+-  **Stable Diffusion XL (SDXL)**
+-  **Stable Diffusion 3 (SD3)**
+-  **FLUX.1 (Dev/Schnell)**
+-  **CogVideoX** (video models)
+-  **Any other diffusers pipeline**
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Dataset Guide" icon="images" href="/training/datasets">
+    Learn how to prepare your training data
+  </Card>
+
+  <Card title="LoRA Training" icon="sliders" href="/training/lora">
+    Complete guide to LoRA parameters and configuration
+  </Card>
+
+  <Card title="Supported Models" icon="list" href="/models/supported">
+    See all compatible model architectures
+  </Card>
+
+  <Card title="Examples" icon="code" href="https://github.com/ntegrals/hypergen/tree/main/examples">
+    View complete training examples on GitHub
+  </Card>
+</CardGroup>
