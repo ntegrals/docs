@@ -2,7 +2,7 @@
 
 Official documentation for HyperGen - an optimized inference and fine-tuning framework for diffusion models.
 
-## 📚 Documentation Structure
+## 📚 Documentation Overview
 
 - **Getting Started**: Installation, quickstart guide
 - **Training**: LoRA training guides, datasets, parameters
